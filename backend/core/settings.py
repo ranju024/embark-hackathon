@@ -9,7 +9,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-secret-change-me")
 DEBUG = os.getenv("DEBUG", "True") == "True"
-ALLOWED_HOSTS = ["*"]  # fine for a hackathon; tighten if you deploy publicly
+ALLOWED_HOSTS = ["*"]  
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -24,6 +24,8 @@ INSTALLED_APPS = [
     "corsheaders",
     "api",
     "households",
+    "scheduling",
+    "compliance",
 ]
 
 MIDDLEWARE = [
@@ -97,10 +99,12 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(hours=12),  # long-lived: one less thing to debug during a demo
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=12),  # long-lived for now
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
 }
 
-# --- CORS ---
-# Wide open for a hackathon. Tighten CORS_ALLOWED_ORIGINS if you have time.
 CORS_ALLOW_ALL_ORIGINS = True
+
+MEDIA_URL = '/media/'  # The URL address that points to your media files in the browser
+MEDIA_ROOT = BASE_DIR / 'media'  # The absolute file system path to the directory where user-uploaded files are stored
+
