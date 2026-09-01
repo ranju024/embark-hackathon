@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     "scheduling",
     "compliance",
     "rewards",
+    "complaints",
 ]
 
 MIDDLEWARE = [
