@@ -12,6 +12,8 @@ urlpatterns = [
     path("api/", include("households.urls")),
     path("api/", include("scheduling.urls")),
     path("api/", include("compliance.urls")),
+    path("api/", include("rewards.urls")),
+    path("api/", include("complaints.urls")),
 ]
 
 if settings.DEBUG:
