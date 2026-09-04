@@ -27,7 +27,7 @@ function App() {
     <BrowserRouter>
       <nav style={{ marginBottom: 24 }}>
         <Link to="/" style={{ marginRight: 12 }}>Home</Link>
-        <Link to="/households">Households</Link>
+        <Link to="/households" style={{ marginRight: 12 }}>Households</Link>
         <Link to="/login">Login</Link>
       </nav>
 
