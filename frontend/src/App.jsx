@@ -4,6 +4,7 @@ import api from "./api";
 import Households from "./pages/Households";
 import Login from "./pages/Login";
 import Scheduling from "./pages/Scheduling";
+import Compliance from "./pages/Compliance";
 
 function Home() {
   const [status, setStatus] = useState("checking...");
@@ -30,6 +31,7 @@ function App() {
         <Link to="/" style={{ marginRight: 12 }}>Home</Link>
         <Link to="/households" style={{ marginRight: 12 }}>Households</Link>
         <Link to="/schdeduling" style={{ marginRight: 12}}>Scheduling</Link>
+        <Link to="/compliance" style={{ marginRight: 12}}>Compliance</Link>
         <Link to="/login">Login</Link>
       </nav>
 
@@ -38,6 +40,7 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/households" element={<Households />} />
           <Route path="/schdeduling" element={<Scheduling />} />
+          <Route path="/compliance" element={<Compliance />} />
           <Route path="/login" element={<Login />} />
         </Routes>
       </div>
