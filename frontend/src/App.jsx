@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
 import api from "./api";
 import Households from "./pages/Households";
 import Login from "./pages/Login";
+import Scheduling from "./pages/Scheduling";
 
 function Home() {
   const [status, setStatus] = useState("checking...");
@@ -28,6 +29,7 @@ function App() {
       <nav style={{ marginBottom: 24 }}>
         <Link to="/" style={{ marginRight: 12 }}>Home</Link>
         <Link to="/households" style={{ marginRight: 12 }}>Households</Link>
+        <Link to="/schdeduling" style={{ marginRight: 12}}>Scheduling</Link>
         <Link to="/login">Login</Link>
       </nav>
 
@@ -35,6 +37,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/households" element={<Households />} />
+          <Route path="/schdeduling" element={<Scheduling />} />
           <Route path="/login" element={<Login />} />
         </Routes>
       </div>
