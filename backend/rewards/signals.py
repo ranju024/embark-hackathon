@@ -4,18 +4,21 @@ from compliance.models import ComplianceCheck
 from .models import GreenPointsEntry, POINTS_FOR_COMPLIANT, POINTS_FOR_NON_COMPLIANT
 
 
-@receiver(post_save, sender=ComplianceCheck) # when ComplianceCheck model is saved, this is triggered
+@receiver(post_save, sender=ComplianceCheck)
 def create_points_entry(sender, instance, created, **kwargs):
     """
-    Runs automatically every time a ComplianceCheck is saved.
-    `instance` is the ComplianceCheck that was just saved.
-    `created` is True only on the FIRST save (creation), False on updates.
+    Fires on EVERY save of a ComplianceCheck. The initial creation
+    (status="pending_review") should do nothing. Only the later review()
+    update (status becomes "compliant"/"non_compliant") should award
+    points exactly once.
     """
-    if not created:
+    if instance.status not in ("compliant", "non_compliant"):
         return
 
+    if GreenPointsEntry.objects.filter(compliance_check=instance).exists():
+        return 
+    
     points = POINTS_FOR_COMPLIANT if instance.status == "compliant" else POINTS_FOR_NON_COMPLIANT
-
     GreenPointsEntry.objects.create(
         household=instance.household,
         compliance_check=instance,
