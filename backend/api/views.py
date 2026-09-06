@@ -5,6 +5,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from django.db.models import Q
+from django.core.exceptions import ValidationError
 from datetime import date
 
 from .models import Item
@@ -94,10 +95,10 @@ def chat(request):
     qr = request.data.get("household_qr")
     if qr:
         try:
-            household = Household.objects.get(qr_code=qr)
+            household = Household.objects.get(qr_code=qr.strip())
             context = build_household_context(household)
             system_content = system_content + "\n\nHOUSEHOLD CONTEXT:\n" + context
-        except Household.DoesNotExist:
+        except (Household.DoesNotExist, ValidationError, ValueError):
             pass  # invalid QR — just answer generically, don't error out
  
     try:

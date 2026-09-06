@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { login } from "../api";
+import { register, login } from "../api";
 
-function Login({ onLogin }) {
+function Register({ onLogin }) {
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const navigate = useNavigate();
@@ -12,17 +13,18 @@ function Login({ onLogin }) {
     e.preventDefault();
     setError("");
     try {
+      await register(username, email, password);
       await login(username, password);
       onLogin();
       navigate("/households");
     } catch (err) {
-      setError("Login failed - check your username/password.");
+      setError(err.response?.data ? JSON.stringify(err.response.data) : "Registration failed.");
     }
   };
 
   return (
     <div>
-      <h2>Login</h2>
+      <h2>Register</h2>
       <form onSubmit={handleSubmit}>
         <input
           value={username}
@@ -30,16 +32,22 @@ function Login({ onLogin }) {
           placeholder="Username"
         />
         <input
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="Email"
+          type="email"
+        />
+        <input
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           type="password"
           placeholder="Password"
         />
-        <button type="submit">Log In</button>
+        <button type="submit">Register</button>
       </form>
       {error && <p style={{ color: "red" }}>{error}</p>}
     </div>
   );
 }
 
-export default Login;
+export default Register;

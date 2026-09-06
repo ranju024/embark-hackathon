@@ -1,10 +1,15 @@
-import api from "../api";  //api.js
+import api from "../api";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
-export const getHouseholds = async () => {
-  const res = await api.get("/households/");
-  return res.data;
+export const getMyHousehold = async () => {
+  try {
+    const res = await api.get("/households/mine/");
+    return res.data;
+  } catch (err) {
+    if (err.response?.status === 404) return null;
+    throw err;
+  }
 };
 
 export const createHousehold = async (ward_number, house_number, owner_name, phone_number) => {
