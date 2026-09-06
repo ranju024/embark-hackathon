@@ -1,5 +1,6 @@
 import uuid
 from django.db import models
+from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator
 from phonenumber_field.modelfields import PhoneNumberField
 
@@ -8,6 +9,7 @@ class Household(models.Model):
     """
     A registered household in a specific ward with a unique qr
     """
+    owner = models.OneToOneField(User, on_delete=models.CASCADE, related_name="household")
     ward_number = models.PositiveIntegerField(validators=[MinValueValidator(1), MaxValueValidator(29)])
     house_number = models.CharField(max_length=15)
     owner_name = models.CharField(max_length=50)
