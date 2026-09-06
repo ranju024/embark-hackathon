@@ -1,10 +1,16 @@
 import { useEffect, useState } from "react";
-import { getMyHousehold, createHousehold, getHouseholdQrImageUrl } from "../api/households";
-import { isLoggedIn } from "../auth";
+import {
+  getMyHousehold,
+  getHouseholds,
+  createHousehold,
+  getHouseholdQrImageUrl,
+} from "../api/households";
 import { getMyPoints } from "../api/rewards";
+import { isLoggedIn } from "../auth";
 
-function Households() {
+function Households({ isStaff }) {
   const [myHousehold, setMyHousehold] = useState(null);
+  const [allHouseholds, setAllHouseholds] = useState([]);
   const [points, setPoints] = useState([]);
   const [loading, setLoading] = useState(true);
   const [wardNumber, setWardNumber] = useState("");
@@ -16,12 +22,20 @@ function Households() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const household = await getMyHousehold();
-      setMyHousehold(household);
-      if (household) {
-        const pointsData = await getMyPoints();
-        setPoints(pointsData);
-      } 
+      if (isStaff) {
+        // TODO: this is the prop this component now receives — use it
+        // directly as the condition (it's already true/false, no need
+        // to call a function or compare it to anything).
+        const data = await getHouseholds();
+        setAllHouseholds(data);
+      } else {
+        const household = await getMyHousehold();
+        setMyHousehold(household);
+        if (household) {
+          const pointsData = await getMyPoints();
+          setPoints(pointsData);
+        }
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -35,8 +49,8 @@ function Households() {
     } else {
       setLoading(false);
     }
-  }, []);
-
+  }, [isStaff]);
+  
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -51,17 +65,31 @@ function Households() {
   if (!isLoggedIn()) {
     return <p>Please log in or register an account to manage your household.</p>;
   }
- 
   if (loading) {
     return <p>Loading...</p>;
   }
 
+  if (isStaff) {
+    return (
+      <div>
+        <h2>All Registered Households</h2>
+        <ul style={{ listStyle: "none", padding: 0 }}>
+          {allHouseholds.map((h) => (
+            <li key={h.id} style={{ border: "1px solid #ccc", padding: 12, marginBottom: 8 }}>
+              <p>Ward {h.ward_number} — House {h.house_number} ({h.owner_name}) — owner: {h.owner_username}</p>
+              <img src={getHouseholdQrImageUrl(h.id)} alt="QR code" width={100} />
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
   const totalPoints = points.reduce((sum, entry) => sum + entry.points, 0);
- 
+
   return (
     <div>
       <h2>My Household</h2>
- 
       {myHousehold ? (
         <div style={{ border: "1px solid #ccc", padding: 12 }}>
           <p>Ward {myHousehold.ward_number} — House {myHousehold.house_number} ({myHousehold.owner_name})</p>
@@ -87,10 +115,9 @@ function Households() {
           </form>
         </>
       )}
- 
       {error && <p style={{ color: "red" }}>{error}</p>}
     </div>
   );
 }
- 
+
 export default Households;

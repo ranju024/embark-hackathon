@@ -67,14 +67,11 @@ function AppContent() {
       <div style={{ fontFamily: "sans-serif", maxWidth: 600, margin: "40px auto" }}>
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/households" element={<Households />} />
+          <Route path="/households" element={<Households isStaff={isStaff} />} />
           <Route path="/scheduling" element={<Scheduling isStaff={isStaff} />} />
-          <Route path="/compliance" element={<Compliance />} />
+          <Route path="/compliance" element={<Compliance isStaff={isStaff} />} />
           <Route path="/chat" element={<Chat />} />
-          <Route
-            path="/login"
-            element={<Login onLogin={() => setLoggedIn(true)} />}
-          />
+          <Route path="/login" element={<Login onLogin={() => setLoggedIn(true)} />} />
           <Route path="/register" element={<Register onLogin={() => setLoggedIn(true)} />} />
         </Routes>
       </div>

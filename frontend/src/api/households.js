@@ -12,6 +12,12 @@ export const getMyHousehold = async () => {
   }
 };
 
+export const getHouseholds = async () => {
+  // For staff, this returns EVERYONE's household
+  const res = await api.get("/households/");
+  return res.data;
+};
+
 export const createHousehold = async (ward_number, house_number, owner_name, phone_number) => {
   const res = await api.post("/households/", {
     ward_number,
