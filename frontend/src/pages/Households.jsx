@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { getMyHousehold, createHousehold, getHouseholdQrImageUrl } from "../api/households";
 import { isLoggedIn } from "../auth";
+import { getMyPoints } from "../api/rewards";
 
 function Households() {
   const [myHousehold, setMyHousehold] = useState(null);
+  const [points, setPoints] = useState([]);
   const [loading, setLoading] = useState(true);
   const [wardNumber, setWardNumber] = useState("");
   const [houseNumber, setHouseNumber] = useState("");
@@ -11,11 +13,15 @@ function Households() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [error, setError] = useState("");
 
-  const loadMyHousehold = async () => {
+  const loadData = async () => {
     setLoading(true);
     try {
-      const data = await getMyHousehold();
-      setMyHousehold(data);
+      const household = await getMyHousehold();
+      setMyHousehold(household);
+      if (household) {
+        const pointsData = await getMyPoints();
+        setPoints(pointsData);
+      } 
     } catch (e) {
       console.error(e);
     } finally {
@@ -25,7 +31,7 @@ function Households() {
 
   useEffect(() => {
     if (isLoggedIn()) {
-      loadMyHousehold();
+      loadData();
     } else {
       setLoading(false);
     }
@@ -36,7 +42,7 @@ function Households() {
     setError("");
     try {
       await createHousehold(wardNumber, houseNumber, ownerName, phoneNumber);
-      loadMyHousehold();
+      loadData();
     } catch (err) {
       setError(err.response?.data ? JSON.stringify(err.response.data) : "Failed to create household");
     }
@@ -49,6 +55,8 @@ function Households() {
   if (loading) {
     return <p>Loading...</p>;
   }
+
+  const totalPoints = points.reduce((sum, entry) => sum + entry.points, 0);
  
   return (
     <div>
@@ -58,6 +66,14 @@ function Households() {
         <div style={{ border: "1px solid #ccc", padding: 12 }}>
           <p>Ward {myHousehold.ward_number} — House {myHousehold.house_number} ({myHousehold.owner_name})</p>
           <img src={getHouseholdQrImageUrl(myHousehold.id)} alt="QR code" width={150} />
+          <h3>Green Points: {totalPoints}</h3>
+          <ul>
+            {points.map((p) => (
+              <li key={p.id}>
+                {p.points > 0 ? "+" : ""}{p.points} — {new Date(p.created_at).toLocaleDateString()}
+              </li>
+            ))}
+          </ul>
         </div>
       ) : (
         <>
