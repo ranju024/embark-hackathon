@@ -1,11 +1,21 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { sendChatMessage } from "../api/chat";
+import { getMyHousehold } from "../api/households";
+import { isLoggedIn } from "../auth";
 
 function Chat() {
   const [householdQr, setHouseholdQr] = useState("");
   const [input, setInput] = useState("");
   const [log, setLog] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isLoggedIn()) {
+      getMyHousehold().then((household) => {
+        if (household) setHouseholdQr(household.qr_code);
+      })
+    }
+  }, []);
 
   const handleSend = async (e) => {
     e.preventDefault();
@@ -29,12 +39,11 @@ function Chat() {
   return (
     <div>
       <h2>Ask Waste Warriors</h2>
-      <input
-        value={householdQr}
-        onChange={(e) => setHouseholdQr(e.target.value)}
-        placeholder="Your household QR code (optional, for personalized answers)"
-        style={{ width: "100%", marginBottom: 12 }}
-      />
+      {householdQr && (
+        <p style={{ fontStyle: "italic", color: "#666" }}>
+          Answering with your household's info.
+        </p>
+      )}
 
       <div style={{ border: "1px solid #ccc", padding: 8, minHeight: 200, marginBottom: 8 }}>
         {log.map((msg, i) => (
