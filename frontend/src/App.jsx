@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, Link, useNavigate } from "react-router-dom";
-import api from "./api";
+import api, { getMe } from "./api";
 import { isLoggedIn, logout } from "./auth";
 import Households from "./pages/Households";
 import Login from "./pages/Login";
@@ -29,7 +29,16 @@ function Home() {
 
 function AppContent() {
   const [loggedIn, setLoggedIn] = useState(isLoggedIn());
+  const [isStaff, setIsStaff] = useState(false);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (loggedIn) {
+      getMe().then((data) => setIsStaff(data.is_staff));
+    } else {
+      setIsStaff(false);
+    }
+  }, [loggedIn]);
 
   const handleLogout = () => {
     logout();
@@ -59,7 +68,7 @@ function AppContent() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/households" element={<Households />} />
-          <Route path="/scheduling" element={<Scheduling />} />
+          <Route path="/scheduling" element={<Scheduling isStaff={isStaff} />} />
           <Route path="/compliance" element={<Compliance />} />
           <Route path="/chat" element={<Chat />} />
           <Route

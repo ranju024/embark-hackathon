@@ -30,6 +30,11 @@ export const getItems = async () => {
   return res.data;
 };
 
+export const getMe = async () => {
+  const res = await api.get("/auth/me/");
+  return res.data;
+};
+
 export const createItem = async (title, description) => {
   const res = await api.post("/items/", { title, description });
   return res.data;

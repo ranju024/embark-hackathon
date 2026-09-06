@@ -1,3 +1,4 @@
+from datetime import date as date_cls
 from rest_framework import serializers
 from .models import WardSchedule, ScheduleNotice
 
@@ -32,5 +33,9 @@ class ScheduleNoticeSerializer(serializers.ModelSerializer):
 
         elif notice_type == "holiday" and delayed_to_time:
             raise serializers.ValidationError({"delayed_to_time": "This field should not be set when notice type is holiday."})
+        
+        date_value = data.get("date")
+        if date_value and date_value < date_cls.today():
+            raise serializers.ValidationError({"date": "Notice date cannot be in the past."})
 
         return data

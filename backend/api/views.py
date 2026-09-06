@@ -80,7 +80,21 @@ def build_household_context(household):
  
     return "\n".join(lines)
  
- 
+
+@api_view(["GET"])
+@permission_classes([permissions.IsAuthenticated])
+def me(request):
+    """
+    GET /api/auth/me/
+    Lets the frontend find out basic info about whoever's currently
+    logged in — specifically whether they're staff, since login alone
+    only returns tokens, never tells you anything ABOUT the account.
+    """
+    return Response({
+        "username": request.user.username,
+        "is_staff": request.user.is_staff,
+    })
+
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def chat(request):

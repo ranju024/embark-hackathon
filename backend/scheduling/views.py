@@ -1,5 +1,5 @@
 from datetime import date as date_cls
-from rest_framework import viewsets
+from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import Q
@@ -11,10 +11,20 @@ class WardScheduleViewSet(viewsets.ModelViewSet):
     queryset = WardSchedule.objects.all()
     serializer_class = WardScheduleSerializer
 
+    def get_permissions(self):
+        if self.action in ["create", "update", "partial_update", "destroy"]:
+            return [permissions.IsAdminUser()]
+        return [permissions.IsAuthenticatedOrReadOnly()]
+
 
 class ScheduleNoticeViewSet(viewsets.ModelViewSet):
     queryset = ScheduleNotice.objects.all()
     serializer_class = ScheduleNoticeSerializer
+
+    def get_permissions(self):
+        if self.action in ["create", "update", "partial_update", "destroy"]:
+            return [permissions.IsAdminUser()]
+        return [permissions.IsAuthenticatedOrReadOnly()]
 
     def get_queryset(self):
         queryset = ScheduleNotice.objects.all()
