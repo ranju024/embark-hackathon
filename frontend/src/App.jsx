@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BrowserRouter, Routes, Route, Link, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, NavLink, useNavigate } from "react-router-dom";
 import api, { getMe } from "./api";
 import { isLoggedIn, logout } from "./auth";
 import Households from "./pages/Households";
@@ -11,16 +11,13 @@ import Chat from "./pages/Chat";
 
 function Home() {
   const [status, setStatus] = useState("checking...");
-
   useEffect(() => {
-    api
-      .get("/health/")
-      .then((res) => setStatus(res.data.message))
+    api.get("/health/").then((res) => setStatus(res.data.message))
       .catch(() => setStatus("cannot reach backend — check it's running on :8000"));
   }, []);
-
   return (
-    <div>
+    <div className="page-container">
+      <span className="eyebrow">LIVE IN KATHMANDU METROPOLITAN CITY</span>
       <h1>Waste Warriors</h1>
       <p>Backend status: <strong>{status}</strong></p>
     </div>
@@ -30,6 +27,7 @@ function Home() {
 function AppContent() {
   const [loggedIn, setLoggedIn] = useState(isLoggedIn());
   const [isStaff, setIsStaff] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -43,38 +41,51 @@ function AppContent() {
   const handleLogout = () => {
     logout();
     setLoggedIn(false);
+    setMenuOpen(false);
     navigate("/");
   };
 
   return (
     <>
-      <nav style={{ marginBottom: 24 }}>
-        <Link to="/" style={{ marginRight: 12 }}>Home</Link>
-        <Link to="/households" style={{ marginRight: 12 }}>Households</Link>
-        <Link to="/scheduling" style={{ marginRight: 12 }}>Scheduling</Link>
-        <Link to="/compliance" style={{ marginRight: 12 }}>Compliance</Link>
-        <Link to="/chat" style={{ marginRight: 12 }}>Chat</Link>
-        {loggedIn ? (
-          <button onClick={handleLogout}>Log Out</button>
-        ) : (
-          <>
-            <Link to="/login" style={{ marginRight: 12 }}>Login</Link>
-            <Link to="/register">Register</Link>
-          </>
-        )}
+      <nav className="navbar">
+        <div className="navbar-brand">
+          <span className="navbar-logo">W</span>
+          Waste Warrior
+        </div>
+
+        <button
+          className="navbar-toggle"
+          onClick={() => setMenuOpen((prev) => !prev)}
+        >
+          ☰
+        </button>
+
+        <div className={`navbar-links ${menuOpen ? "open" : ""}`}>
+          <NavLink to="/" end onClick={() => setMenuOpen(false)}>Home</NavLink>
+          <NavLink to="/households" onClick={() => setMenuOpen(false)}>Households</NavLink>
+          <NavLink to="/scheduling" onClick={() => setMenuOpen(false)}>Scheduling</NavLink>
+          <NavLink to="/compliance" onClick={() => setMenuOpen(false)}>Compliance</NavLink>
+          <NavLink to="/chat" onClick={() => setMenuOpen(false)}>Chat</NavLink>
+          {loggedIn ? (
+            <button className="btn btn-outline" onClick={handleLogout}>Log Out</button>
+          ) : (
+            <>
+              <NavLink to="/login" onClick={() => setMenuOpen(false)}>Login</NavLink>
+              <NavLink to="/register" onClick={() => setMenuOpen(false)}>Register</NavLink>
+            </>
+          )}
+        </div>
       </nav>
 
-      <div style={{ fontFamily: "sans-serif", maxWidth: 600, margin: "40px auto" }}>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/households" element={<Households isStaff={isStaff} />} />
-          <Route path="/scheduling" element={<Scheduling isStaff={isStaff} />} />
-          <Route path="/compliance" element={<Compliance isStaff={isStaff} />} />
-          <Route path="/chat" element={<Chat />} />
-          <Route path="/login" element={<Login onLogin={() => setLoggedIn(true)} />} />
-          <Route path="/register" element={<Register onLogin={() => setLoggedIn(true)} />} />
-        </Routes>
-      </div>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/households" element={<Households isStaff={isStaff} />} />
+        <Route path="/scheduling" element={<Scheduling isStaff={isStaff} />} />
+        <Route path="/compliance" element={<Compliance isStaff={isStaff} />} />
+        <Route path="/chat" element={<Chat />} />
+        <Route path="/login" element={<Login onLogin={() => setLoggedIn(true)} />} />
+        <Route path="/register" element={<Register onLogin={() => setLoggedIn(true)} />} />
+      </Routes>
     </>
   );
 }
