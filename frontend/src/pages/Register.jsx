@@ -23,29 +23,18 @@ function Register({ onLogin }) {
   };
 
   return (
-    <div>
-      <h2>Register</h2>
-      <form onSubmit={handleSubmit}>
-        <input
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          placeholder="Username"
-        />
-        <input
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="Email"
-          type="email"
-        />
-        <input
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          type="password"
-          placeholder="Password"
-        />
-        <button type="submit">Register</button>
-      </form>
-      {error && <p style={{ color: "red" }}>{error}</p>}
+    <div className="auth-page">
+      <div className="auth-card">
+        <span className="eyebrow">JOIN WASTE WARRIOR</span>
+        <h2>Create Account</h2>
+        <form onSubmit={handleSubmit}>
+          <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Username" />
+          <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" type="email" />
+          <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="Password" />
+          <button type="submit" className="btn btn-primary">Register</button>
+        </form>
+        {error && <p style={{ color: "red" }}>{error}</p>}
+      </div>
     </div>
   );
 }

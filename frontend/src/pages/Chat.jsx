@@ -13,19 +13,17 @@ function Chat() {
     if (isLoggedIn()) {
       getMyHousehold().then((household) => {
         if (household) setHouseholdQr(household.qr_code);
-      })
+      });
     }
   }, []);
 
   const handleSend = async (e) => {
     e.preventDefault();
     if (!input.trim()) return;
-
     const userMsg = input;
     setLog((prev) => [...prev, { role: "user", text: userMsg }]);
     setInput("");
     setLoading(true);
-
     try {
       const reply = await sendChatMessage(userMsg, householdQr);
       setLog((prev) => [...prev, { role: "bot", text: reply }]);
@@ -37,31 +35,29 @@ function Chat() {
   };
 
   return (
-    <div>
-      <h2>Ask Waste Warriors</h2>
+    <div className="page-container">
+      <span className="eyebrow">ASK WASTE WARRIOR</span>
+      <h2>Chat Assistant</h2>
       {householdQr && (
-        <p style={{ fontStyle: "italic", color: "#666" }}>
-          Answering with your household's info.
-        </p>
+        <p className="pill pill-success" style={{ marginBottom: 12 }}>Personalized to your household</p>
       )}
 
-      <div style={{ border: "1px solid #ccc", padding: 8, minHeight: 200, marginBottom: 8 }}>
+      <div className="chat-window">
         {log.map((msg, i) => (
-          <p key={i}>
-            <strong>{msg.role === "user" ? "You" : "Assistant"}:</strong> {msg.text}
-          </p>
+          <div key={i} className={msg.role === "user" ? "chat-bubble chat-bubble-user" : "chat-bubble chat-bubble-bot"}>
+            {msg.text}
+          </div>
         ))}
-        {loading && <p><em>thinking...</em></p>}
+        {loading && <div className="chat-bubble chat-bubble-bot"><em>thinking...</em></div>}
       </div>
 
-      <form onSubmit={handleSend}>
+      <form onSubmit={handleSend} className="chat-input-row">
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Ask about pickup schedule, fines, complaints..."
-          style={{ width: "70%" }}
         />
-        <button type="submit" disabled={loading}>Send</button>
+        <button type="submit" className="btn btn-primary" disabled={loading}>Send</button>
       </form>
     </div>
   );

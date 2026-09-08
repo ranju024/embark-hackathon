@@ -16,28 +16,22 @@ function Login({ onLogin }) {
       onLogin();
       navigate("/households");
     } catch (err) {
-      setError("Login failed - check your username/password.");
+      setError("Login failed — check your username/password.");
     }
   };
 
   return (
-    <div>
-      <h2>Login</h2>
-      <form onSubmit={handleSubmit}>
-        <input
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          placeholder="Username"
-        />
-        <input
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          type="password"
-          placeholder="Password"
-        />
-        <button type="submit">Log In</button>
-      </form>
-      {error && <p style={{ color: "red" }}>{error}</p>}
+    <div className="auth-page">
+      <div className="auth-card">
+        <span className="eyebrow">WELCOME BACK</span>
+        <h2>Login</h2>
+        <form onSubmit={handleSubmit}>
+          <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Username" />
+          <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="Password" />
+          <button type="submit" className="btn btn-primary">Log In</button>
+        </form>
+        {error && <p style={{ color: "red" }}>{error}</p>}
+      </div>
     </div>
   );
 }

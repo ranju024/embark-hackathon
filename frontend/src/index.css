@@ -111,7 +111,7 @@ h1, h2, h3 {
 .pill-warning { background: var(--color-warning-bg); color: var(--color-warning-text); }
 .pill-neutral { background: #EEE; color: #555; }
 
-/* ===== Nav (basic) ===== */
+/* ===== Nav ===== */
 .navbar {
   display: flex;
   align-items: center;
@@ -119,13 +119,6 @@ h1, h2, h3 {
   padding: 16px 24px;
   border-bottom: 1px solid var(--color-border);
   font-family: var(--font-body);
-}
-.navbar a { text-decoration: none; color: var(--color-text); margin-right: 20px; font-size: 14px; }
-.navbar a.active {
-  background: var(--color-primary);
-  color: #fff;
-  padding: 8px 14px;
-  border-radius: var(--radius-pill);
 }
 
 .page-container {
@@ -206,4 +199,71 @@ h1, h2, h3 {
   .page-container {
     padding: 0 16px;
   }
+}
+
+/* ===== Chat ===== */
+.chat-window {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 16px;
+  min-height: 300px;
+  max-height: 450px;
+  overflow-y: auto;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.chat-bubble {
+  max-width: 75%;
+  padding: 10px 14px;
+  border-radius: 14px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.chat-bubble-user {
+  align-self: flex-end;
+  background: var(--color-primary);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+.chat-bubble-bot {
+  align-self: flex-start;
+  background: var(--color-bg-tint);
+  color: var(--color-text);
+  border-bottom-left-radius: 4px;
+}
+.chat-input-row {
+  display: flex;
+  gap: 8px;
+}
+.chat-input-row input {
+  flex: 1;
+}
+
+/* ===== Auth pages ===== */
+.auth-page {
+  max-width: 420px;
+  margin: 60px auto;
+  padding: 0 24px;
+}
+.auth-card {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 32px;
+  box-shadow: var(--shadow-card);
+}
+.auth-card form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+.auth-card input {
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 14px;
 }
