@@ -16,7 +16,7 @@ function Register({ onLogin }) {
       await register(username, email, password);
       await login(username, password);
       onLogin();
-      navigate("/households");
+      navigate("/onboarding");
     } catch (err) {
       setError(err.response?.data ? JSON.stringify(err.response.data) : "Registration failed.");
     }

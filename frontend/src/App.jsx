@@ -10,6 +10,7 @@ import Compliance from "./pages/Compliance";
 import Chat from "./pages/Chat";
 import SubscriptionPlans from "./pages/SubscriptionPlans";
 import PaymentResult from "./pages/PaymentResult";
+import Onboarding from "./pages/Onboarding";
 
 function Home() {
   const [status, setStatus] = useState("checking...");
@@ -88,6 +89,7 @@ function AppContent() {
         <Route path="/subscriptions" element={<SubscriptionPlans />} />
         <Route path="/subscription/payment-success" element={<PaymentResult outcome="success" />} />
         <Route path="/subscription/payment-failure" element={<PaymentResult outcome="failure" />} />
+        <Route path="/onboarding" element={<Onboarding />} />
         <Route path="/chat" element={<Chat />} />
         <Route path="/login" element={<Login onLogin={() => setLoggedIn(true)} />} />
         <Route path="/register" element={<Register onLogin={() => setLoggedIn(true)} />} />

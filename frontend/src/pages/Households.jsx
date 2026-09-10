@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   getMyHousehold,
   getHouseholds,
-  createHousehold,
   getHouseholdQrImageUrl,
 } from "../api/households";
 import { getMyPoints } from "../api/rewards";
@@ -67,11 +67,6 @@ function Households({ isStaff }) {
   const [allHouseholds, setAllHouseholds] = useState([]);
   const [points, setPoints] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [wardNumber, setWardNumber] = useState("");
-  const [houseNumber, setHouseNumber] = useState("");
-  const [ownerName, setOwnerName] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [error, setError] = useState("");
 
   const loadData = async () => {
     setLoading(true);
@@ -101,17 +96,6 @@ function Households({ isStaff }) {
       setLoading(false);
     }
   }, [isStaff]);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-    try {
-      await createHousehold(wardNumber, houseNumber, ownerName, phoneNumber);
-      loadData();
-    } catch (err) {
-      setError(err.response?.data ? JSON.stringify(err.response.data) : "Failed to create household");
-    }
-  };
 
   if (!isLoggedIn()) {
     return (
@@ -204,16 +188,11 @@ function Households({ isStaff }) {
           <p style={{ color: "var(--color-text-muted)" }}>
             Register your household to receive your waste segregation kit and start earning GreenPoints.
           </p>
-          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 16 }}>
-            <input value={wardNumber} onChange={(e) => setWardNumber(e.target.value)} placeholder="Ward number" type="number" />
-            <input value={houseNumber} onChange={(e) => setHouseNumber(e.target.value)} placeholder="House number" />
-            <input value={ownerName} onChange={(e) => setOwnerName(e.target.value)} placeholder="Full name" />
-            <input value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} placeholder="Phone number" />
-            <button type="submit" className="btn btn-primary">Continue →</button>
-          </form>
+          <Link to="/onboarding" className="btn btn-primary" style={{ marginTop: 16, display: "inline-block" }}>
+            Start Registration →
+          </Link>
         </div>
       )}
-      {error && <p style={{ color: "red" }}>{error}</p>}
     </div>
   );
 }
