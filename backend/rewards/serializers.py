@@ -11,6 +11,3 @@ class GreenPointsEntrySerializer(serializers.ModelSerializer):
         model = GreenPointsEntry
         fields = ["id", "household_display", "compliance_check", "points", "created_at"]
         read_only_fields = ["compliance_check", "points", "created_at"]
-
-
-

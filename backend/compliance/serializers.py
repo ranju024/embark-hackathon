@@ -14,7 +14,7 @@ class ComplianceCheckSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ComplianceCheck
-        fields = ["id", "qr_code", "household_display", "photo", "status", "notes", "checked_at"]
+        fields = ["id", "qr_code", "household_display", "photo", "waste_type", "weight_kg", "status", "notes", "checked_at"]
         read_only_fields = ["checked_at", "status"]  
 
     def validate_qr_code(self, value):

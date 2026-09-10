@@ -8,6 +8,60 @@ import {
 import { getMyPoints } from "../api/rewards";
 import { isLoggedIn } from "../auth";
 
+const TIER_CLASS = {
+  "Bronze": "tier-bronze",
+  "Silver": "tier-silver",
+  "Gold": "tier-gold",
+  "Eco Champion": "tier-eco-champion",
+};
+
+function formatPickupCountdown(nextPickup) {
+  if (!nextPickup) return "No pickup schedule set for your ward yet.";
+
+  const pickupDate = new Date(`${nextPickup.date}T${nextPickup.time}`);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const pickupDay = new Date(pickupDate);
+  pickupDay.setHours(0, 0, 0, 0);
+
+  const dayDiff = Math.round((pickupDay - today) / (1000 * 60 * 60 * 24));
+  const dayLabel = pickupDate.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+  const timeLabel = pickupDate.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+
+  let when;
+  if (dayDiff === 0) when = "Today";
+  else if (dayDiff === 1) when = "Tomorrow";
+  else when = `${dayLabel}`;
+
+  let text = `Next pickup: ${when} · ${timeLabel}`;
+  if (nextPickup.is_delayed) {
+    text += ` (delayed${nextPickup.reason ? " — " + nextPickup.reason : ""})`;
+  }
+  return text;
+}
+
+function BadgeAndProgress({ badgeInfo }) {
+  if (!badgeInfo) return null;
+  const tierClass = TIER_CLASS[badgeInfo.tier] || "tier-bronze";
+
+  return (
+    <div style={{ marginTop: 12 }}>
+      <span className={`badge-pill ${tierClass}`}>{badgeInfo.tier}</span>
+      <div className="progress-track">
+        <div
+          className={`progress-fill ${tierClass}`}
+          style={{ width: `${badgeInfo.progress_percent}%` }}
+        />
+      </div>
+      <p style={{ margin: 0, fontSize: "0.8rem", opacity: 0.8 }}>
+        {badgeInfo.next_tier
+          ? `${badgeInfo.points_to_next_tier} points to ${badgeInfo.next_tier}`
+          : "Highest tier reached"}
+      </p>
+    </div>
+  );
+}
+
 function Households({ isStaff }) {
   const [myHousehold, setMyHousehold] = useState(null);
   const [allHouseholds, setAllHouseholds] = useState([]);
@@ -90,9 +144,9 @@ function Households({ isStaff }) {
   }
 
   // --- Resident view ---
-  const totalPoints = points.reduce((sum, entry) => sum + entry.points, 0);
   const positiveCount = points.filter((p) => p.points > 0).length;
   const complianceRate = points.length > 0 ? Math.round((positiveCount / points.length) * 100) : null;
+  const totalPoints = myHousehold?.badge_info?.total_points ?? points.reduce((sum, entry) => sum + entry.points, 0);
 
   return (
     <div className="page-container">
@@ -115,6 +169,12 @@ function Households({ isStaff }) {
                 <span className="stat-label">Compliance rate</span>
               </div>
             )}
+
+            <BadgeAndProgress badgeInfo={myHousehold.badge_info} />
+
+            <p className={`pickup-countdown ${myHousehold.next_pickup?.is_delayed ? "is-delayed" : ""}`}>
+              {formatPickupCountdown(myHousehold.next_pickup)}
+            </p>
           </div>
 
           <div className="card" style={{ marginBottom: 16, textAlign: "center" }}>

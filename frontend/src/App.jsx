@@ -8,6 +8,8 @@ import Register from "./pages/Register";
 import Scheduling from "./pages/Scheduling";
 import Compliance from "./pages/Compliance";
 import Chat from "./pages/Chat";
+import SubscriptionPlans from "./pages/SubscriptionPlans";
+import PaymentResult from "./pages/PaymentResult";
 
 function Home() {
   const [status, setStatus] = useState("checking...");
@@ -65,6 +67,7 @@ function AppContent() {
           <NavLink to="/households" onClick={() => setMenuOpen(false)}>Households</NavLink>
           <NavLink to="/scheduling" onClick={() => setMenuOpen(false)}>Scheduling</NavLink>
           <NavLink to="/compliance" onClick={() => setMenuOpen(false)}>Compliance</NavLink>
+          <NavLink to="/subscriptions" onClick={() => setMenuOpen(false)}>Subscriptions</NavLink>
           <NavLink to="/chat" onClick={() => setMenuOpen(false)}>Chat</NavLink>
           {loggedIn ? (
             <button className="btn btn-outline" onClick={handleLogout}>Log Out</button>
@@ -82,6 +85,9 @@ function AppContent() {
         <Route path="/households" element={<Households isStaff={isStaff} />} />
         <Route path="/scheduling" element={<Scheduling isStaff={isStaff} />} />
         <Route path="/compliance" element={<Compliance isStaff={isStaff} />} />
+        <Route path="/subscriptions" element={<SubscriptionPlans />} />
+        <Route path="/subscription/payment-success" element={<PaymentResult outcome="success" />} />
+        <Route path="/subscription/payment-failure" element={<PaymentResult outcome="failure" />} />
         <Route path="/chat" element={<Chat />} />
         <Route path="/login" element={<Login onLogin={() => setLoggedIn(true)} />} />
         <Route path="/register" element={<Register onLogin={() => setLoggedIn(true)} />} />

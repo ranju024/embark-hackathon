@@ -11,6 +11,8 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-secret-change-me")
 DEBUG = os.getenv("DEBUG", "True") == "True"
 ALLOWED_HOSTS = ["*"]  
 
+FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173")
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -28,6 +30,7 @@ INSTALLED_APPS = [
     "compliance",
     "rewards",
     "complaints",
+    "subscriptions",
 ]
 
 MIDDLEWARE = [

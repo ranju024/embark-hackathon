@@ -4,6 +4,8 @@ export const createComplianceCheck = async (qrCode, photoFile, notes) => {
   const formData = new FormData();
   formData.append("qr_code", qrCode);
   formData.append("photo", photoFile);
+  formData.append("waste_type", wasteType);
+  formData.append("weight_kg", weightKg);
   formData.append("notes", notes);
   //  .append(fieldName, value). the field names match DRF serializer's
   // field names exactly (qr_code, photo, status, notes) 
