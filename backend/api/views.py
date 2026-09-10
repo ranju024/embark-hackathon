@@ -4,7 +4,7 @@ from rest_framework import viewsets, permissions, generics
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
-from django.db.models import Q
+from django.db.models import Q, Sum, Count
 from django.core.exceptions import ValidationError
 from datetime import date
 
@@ -13,6 +13,7 @@ from .serializers import ItemSerializer, RegisterSerializer
 from households.models import Household
 from scheduling.models import WardSchedule, ScheduleNotice
 from complaints.models import Complaint
+from compliance.models import ComplianceCheck
 
 
 @api_view(["GET"])
@@ -147,3 +148,32 @@ class ItemViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def public_stats(request):
+    """
+    GET /api/stats/summary/
+    Aggregate-only numbers, safe to show on a logged-out marketing page.
+    Never returns anything tied to an individual household.
+    """
+    total_households = Household.objects.count()
+
+    active_wards = WardSchedule.objects.values("ward_number").distinct().count()
+
+    total_weight_kg = ComplianceCheck.objects.aggregate(
+        total=Sum("weight_kg")
+    )["total"] or 0
+
+    reviewed_checks = ComplianceCheck.objects.exclude(status="pending_review")
+    reviewed_count = reviewed_checks.count()
+    compliant_count = reviewed_checks.filter(status="compliant").count()
+    compliance_rate = round((compliant_count / reviewed_count) * 100) if reviewed_count > 0 else None
+
+    return Response({
+        "total_households": total_households,
+        "active_wards": active_wards,
+        "total_weight_kg": float(total_weight_kg),
+        "compliance_rate": compliance_rate,  # None if nothing reviewed yet — frontend should handle that
+    })

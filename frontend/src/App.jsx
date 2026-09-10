@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, NavLink, useNavigate } from "react-router-dom";
-import api, { getMe } from "./api";
+import { getMe } from "./api";
+import Home from "./pages/Home";
 import { isLoggedIn, logout } from "./auth";
 import Households from "./pages/Households";
 import Login from "./pages/Login";
@@ -11,21 +12,8 @@ import Chat from "./pages/Chat";
 import SubscriptionPlans from "./pages/SubscriptionPlans";
 import PaymentResult from "./pages/PaymentResult";
 import Onboarding from "./pages/Onboarding";
+import RewardsHub from "./pages/RewardsHub";
 
-function Home() {
-  const [status, setStatus] = useState("checking...");
-  useEffect(() => {
-    api.get("/health/").then((res) => setStatus(res.data.message))
-      .catch(() => setStatus("cannot reach backend — check it's running on :8000"));
-  }, []);
-  return (
-    <div className="page-container">
-      <span className="eyebrow">LIVE IN KATHMANDU METROPOLITAN CITY</span>
-      <h1>Waste Warriors</h1>
-      <p>Backend status: <strong>{status}</strong></p>
-    </div>
-  );
-}
 
 function AppContent() {
   const [loggedIn, setLoggedIn] = useState(isLoggedIn());
@@ -69,6 +57,7 @@ function AppContent() {
           <NavLink to="/scheduling" onClick={() => setMenuOpen(false)}>Scheduling</NavLink>
           <NavLink to="/compliance" onClick={() => setMenuOpen(false)}>Compliance</NavLink>
           <NavLink to="/subscriptions" onClick={() => setMenuOpen(false)}>Subscriptions</NavLink>
+          <NavLink to="/rewards" onClick={() => setMenuOpen(false)}>Rewards</NavLink>
           <NavLink to="/chat" onClick={() => setMenuOpen(false)}>Chat</NavLink>
           {loggedIn ? (
             <button className="btn btn-outline" onClick={handleLogout}>Log Out</button>
@@ -93,6 +82,7 @@ function AppContent() {
         <Route path="/chat" element={<Chat />} />
         <Route path="/login" element={<Login onLogin={() => setLoggedIn(true)} />} />
         <Route path="/register" element={<Register onLogin={() => setLoggedIn(true)} />} />
+        <Route path="/rewards" element={<RewardsHub />} />
       </Routes>
     </>
   );

@@ -1,6 +1,6 @@
 import api from "../api";
 
-export const createComplianceCheck = async (qrCode, photoFile, notes) => {
+export const createComplianceCheck = async (qrCode, photoFile, wasteType, weightKg, notes) => {
   const formData = new FormData();
   formData.append("qr_code", qrCode);
   formData.append("photo", photoFile);
