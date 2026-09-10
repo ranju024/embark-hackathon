@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import {
   getMyHousehold,
@@ -6,6 +6,8 @@ import {
   getHouseholdQrImageUrl,
 } from "../api/households";
 import { getMyPoints } from "../api/rewards";
+import { getMyRoutes as getMyActiveHouseholdRoute } from "../api/collectorRoutes";
+import LiveTruckMap from "../components/LiveTruckMap";
 import { isLoggedIn } from "../auth";
 
 const TIER_CLASS = {
@@ -14,6 +16,8 @@ const TIER_CLASS = {
   "Gold": "tier-gold",
   "Eco Champion": "tier-eco-champion",
 };
+
+const ROUTE_POLL_INTERVAL_MS = 15000;
 
 function formatPickupCountdown(nextPickup) {
   if (!nextPickup) return "No pickup schedule set for your ward yet.";
@@ -48,10 +52,7 @@ function BadgeAndProgress({ badgeInfo }) {
     <div style={{ marginTop: 12 }}>
       <span className={`badge-pill ${tierClass}`}>{badgeInfo.tier}</span>
       <div className="progress-track">
-        <div
-          className={`progress-fill ${tierClass}`}
-          style={{ width: `${badgeInfo.progress_percent}%` }}
-        />
+        <div className={`progress-fill ${tierClass}`} style={{ width: `${badgeInfo.progress_percent}%` }} />
       </div>
       <p style={{ margin: 0, fontSize: "0.8rem", opacity: 0.8 }}>
         {badgeInfo.next_tier
@@ -67,6 +68,8 @@ function Households({ isStaff }) {
   const [allHouseholds, setAllHouseholds] = useState([]);
   const [points, setPoints] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeRoute, setActiveRoute] = useState(null);
+  const pollRef = useRef(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -89,12 +92,28 @@ function Households({ isStaff }) {
     }
   };
 
+  const pollActiveRoute = async () => {
+    try {
+      const route = await getMyActiveHouseholdRoute();
+      setActiveRoute(route);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   useEffect(() => {
     if (isLoggedIn()) {
       loadData();
     } else {
       setLoading(false);
     }
+  }, [isStaff]);
+
+  useEffect(() => {
+    if (!isLoggedIn() || isStaff) return;
+    pollActiveRoute();
+    pollRef.current = setInterval(pollActiveRoute, ROUTE_POLL_INTERVAL_MS);
+    return () => clearInterval(pollRef.current);
   }, [isStaff]);
 
   if (!isLoggedIn()) {
@@ -108,7 +127,6 @@ function Households({ isStaff }) {
     return <div className="page-container"><p>Loading...</p></div>;
   }
 
-  // --- Staff view: all registered households, card grid ---
   if (isStaff) {
     return (
       <div className="page-container">
@@ -127,7 +145,6 @@ function Households({ isStaff }) {
     );
   }
 
-  // --- Resident view ---
   const positiveCount = points.filter((p) => p.points > 0).length;
   const complianceRate = points.length > 0 ? Math.round((positiveCount / points.length) * 100) : null;
   const totalPoints = myHousehold?.badge_info?.total_points ?? points.reduce((sum, entry) => sum + entry.points, 0);
@@ -160,6 +177,21 @@ function Households({ isStaff }) {
               {formatPickupCountdown(myHousehold.next_pickup)}
             </p>
           </div>
+
+          {activeRoute && (
+            <div className="card" style={{ marginBottom: 16 }}>
+              <span className="eyebrow">COLLECTOR ON THE WAY</span>
+              {activeRoute.current_lat && activeRoute.current_lng ? (
+                <LiveTruckMap
+                  lat={activeRoute.current_lat}
+                  lng={activeRoute.current_lng}
+                  label="Your collector"
+                />
+              ) : (
+                <p>Your collector has started their route — waiting for their first location update.</p>
+              )}
+            </div>
+          )}
 
           <div className="card" style={{ marginBottom: 16, textAlign: "center" }}>
             <span className="eyebrow">YOUR HOUSEHOLD QR</span>

@@ -13,7 +13,7 @@ import SubscriptionPlans from "./pages/SubscriptionPlans";
 import PaymentResult from "./pages/PaymentResult";
 import Onboarding from "./pages/Onboarding";
 import RewardsHub from "./pages/RewardsHub";
-
+import WardDashboard from "./pages/WardDashboard";
 
 function AppContent() {
   const [loggedIn, setLoggedIn] = useState(isLoggedIn());
@@ -54,6 +54,7 @@ function AppContent() {
         <div className={`navbar-links ${menuOpen ? "open" : ""}`}>
           <NavLink to="/" end onClick={() => setMenuOpen(false)}>Home</NavLink>
           <NavLink to="/households" onClick={() => setMenuOpen(false)}>Households</NavLink>
+          {isStaff && <NavLink to="/ward-dashboard" onClick={() => setMenuOpen(false)}>Ward Dashboard</NavLink>}
           <NavLink to="/scheduling" onClick={() => setMenuOpen(false)}>Scheduling</NavLink>
           <NavLink to="/compliance" onClick={() => setMenuOpen(false)}>Compliance</NavLink>
           <NavLink to="/subscriptions" onClick={() => setMenuOpen(false)}>Subscriptions</NavLink>
@@ -83,6 +84,7 @@ function AppContent() {
         <Route path="/login" element={<Login onLogin={() => setLoggedIn(true)} />} />
         <Route path="/register" element={<Register onLogin={() => setLoggedIn(true)} />} />
         <Route path="/rewards" element={<RewardsHub />} />
+        <Route path="/ward-dashboard" element={<WardDashboard />} />
       </Routes>
     </>
   );

@@ -8,6 +8,7 @@ from django.db.models import Q, Sum, Count
 from django.core.exceptions import ValidationError
 from datetime import date
 
+from django.contrib.auth.models import User
 from .models import Item
 from .serializers import ItemSerializer, RegisterSerializer
 from households.models import Household
@@ -81,6 +82,46 @@ def build_household_context(household):
  
     return "\n".join(lines)
  
+@api_view(["GET"])
+@permission_classes([permissions.IsAdminUser])
+def ward_compliance_stats(request):
+    """GET /api/ward-stats/ — staff-only per-ward compliance + waste-type breakdown."""
+    stats = (
+        ComplianceCheck.objects.exclude(status="pending_review")
+        .values("household__ward_number")
+        .annotate(
+            total=Count("id"),
+            compliant=Count("id", filter=Q(status="compliant")),
+            non_compliant=Count("id", filter=Q(status="non_compliant")),
+            organic=Count("id", filter=Q(waste_type="organic")),
+            dry=Count("id", filter=Q(waste_type="dry")),
+            both=Count("id", filter=Q(waste_type="both")),
+            total_weight_kg=Sum("weight_kg"),
+        )
+        .order_by("household__ward_number")
+    )
+    results = [
+        {
+            "ward_number": s["household__ward_number"],
+            "total": s["total"],
+            "compliant": s["compliant"],
+            "non_compliant": s["non_compliant"],
+            "compliance_rate": round((s["compliant"] / s["total"]) * 100) if s["total"] else None,
+            "organic": s["organic"], "dry": s["dry"], "both": s["both"],
+            "total_weight_kg": float(s["total_weight_kg"] or 0),
+        }
+        for s in stats
+    ]
+    return Response(results)
+
+
+@api_view(["GET"])
+@permission_classes([permissions.IsAdminUser])
+def staff_users(request):
+    """GET /api/staff-users/ — for the route-assignment dropdown on the ward dashboard."""
+    staff = User.objects.filter(is_staff=True).order_by("username")
+    return Response([{"id": u.id, "username": u.username} for u in staff])
+
 
 @api_view(["GET"])
 @permission_classes([permissions.IsAuthenticated])
