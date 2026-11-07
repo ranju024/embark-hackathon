@@ -1,14 +1,16 @@
 import uuid
+from datetime import timedelta
 from django.db import models
 from django.utils import timezone
-from datetime import timedelta
 from households.models import Household
+
+SUBSCRIPTION_PERIOD_DAYS = 30
 
 
 class SubscriptionPlan(models.Model):
     """
     Admin-editable catalog of paid plans. The free LMC basic collection
-    is NOT a row here, a household with no active HouseholdSubscription
+    is NOT a row here — a household with no active HouseholdSubscription
     is simply on the free tier by default.
     """
     name = models.CharField(max_length=50, unique=True)
@@ -37,6 +39,7 @@ class HouseholdSubscription(models.Model):
         ("pending_payment", "Pending Payment"),
         ("active", "Active"),
         ("expired", "Expired"),
+        ("superseded", "Superseded by renewal"),
         ("cancelled", "Cancelled"),
         ("payment_failed", "Payment Failed"),
     ]
@@ -54,9 +57,27 @@ class HouseholdSubscription(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def activate(self):
+        """
+        Starts a paid period. If the household still has paid days left on
+        another active subscription (a renewal inside the renewal window),
+        the new period begins where that one ends so no paid days are
+        lost, and the older row is marked superseded.
+        """
+        today = timezone.localdate()
+        others = HouseholdSubscription.objects.filter(
+            household=self.household, status="active"
+        ).exclude(pk=self.pk)
+
+        start = today
+        latest_end = others.filter(period_end__gte=today).order_by("-period_end").values_list("period_end", flat=True).first()
+        if latest_end:
+            start = latest_end
+
+        others.update(status="superseded")
+
         self.status = "active"
-        self.period_start = timezone.localdate()
-        self.period_end = self.period_start + timedelta(days=30)
+        self.period_start = start
+        self.period_end = start + timedelta(days=SUBSCRIPTION_PERIOD_DAYS)
         self.save()
 
     def __str__(self):

@@ -1,14 +1,19 @@
+from decimal import Decimal, InvalidOperation
+import requests
 from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
-import requests
 
+from households.models import Household
 from .models import SubscriptionPlan, HouseholdSubscription, Payment
 from .serializers import SubscriptionPlanSerializer, HouseholdSubscriptionSerializer
+from .services import get_active_subscription, can_renew, RENEWAL_WINDOW_DAYS
 from .esewa import (
     build_payment_form_fields,
     decode_esewa_response,
@@ -20,7 +25,7 @@ from .esewa import (
 
 
 class SubscriptionPlanViewSet(viewsets.ReadOnlyModelViewSet):
-    """Public catalog which is visible even when logged out, so it can be shown on a pricing page."""
+    """Public catalog — visible even logged out, so it can be shown on a pricing page."""
     queryset = SubscriptionPlan.objects.filter(is_active=True)
     serializer_class = SubscriptionPlanSerializer
     permission_classes = [AllowAny]
@@ -29,10 +34,22 @@ class SubscriptionPlanViewSet(viewsets.ReadOnlyModelViewSet):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def my_subscription(request):
+    """
+    The active subscription if there is one; otherwise the most recent
+    finished attempt (expired / failed) so the UI can explain what
+    happened; otherwise null (free tier).
+    """
     household = getattr(request.user, "household", None)
     if household is None:
         return Response(None)
-    subscription = household.subscriptions.order_by("-created_at").first()
+
+    subscription = get_active_subscription(household)
+    if subscription is None:
+        subscription = (
+            household.subscriptions.exclude(status__in=["pending_payment", "cancelled", "superseded"])
+            .order_by("-created_at")
+            .first()
+        )
     if subscription is None:
         return Response(None)
     return Response(HouseholdSubscriptionSerializer(subscription).data)
@@ -48,8 +65,37 @@ def subscribe(request):
 
     plan = get_object_or_404(SubscriptionPlan, id=request.data.get("plan_id"), is_active=True)
 
-    subscription = HouseholdSubscription.objects.create(household=household, plan=plan, status="pending_payment")
-    payment = Payment.objects.create(subscription=subscription, amount=plan.monthly_price_npr, status="initiated")
+    active = get_active_subscription(household)
+    if active and not can_renew(active):
+        return Response(
+            {
+                "detail": (
+                    f"You already have an active {active.plan.name} plan until {active.period_end:%b %d, %Y}. "
+                    f"You can renew or switch plans in the last {RENEWAL_WINDOW_DAYS} days of the period."
+                )
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    with transaction.atomic():
+        # Serialize concurrent clicks from the same household.
+        Household.objects.select_for_update().get(pk=household.pk)
+
+        # Abandoned checkouts for other plans are cancelled; a pending one
+        # for THIS plan is reused instead of piling up duplicates.
+        HouseholdSubscription.objects.filter(
+            household=household, status="pending_payment"
+        ).exclude(plan=plan).update(status="cancelled")
+
+        subscription = HouseholdSubscription.objects.filter(
+            household=household, plan=plan, status="pending_payment"
+        ).first()
+        if subscription is None:
+            subscription = HouseholdSubscription.objects.create(
+                household=household, plan=plan, status="pending_payment"
+            )
+
+        payment = Payment.objects.create(subscription=subscription, amount=plan.monthly_price_npr)
 
     frontend_base = settings.FRONTEND_BASE_URL
     form_fields = build_payment_form_fields(
@@ -70,9 +116,8 @@ def subscribe(request):
 def verify_payment(request):
     """
     Body: { "data": "<base64 string eSewa redirected back with>" }
-    Called by the frontend's success page (not by eSewa directly), so
-    it runs behind auth. Double-checks with eSewa's own status API —
-    the redirect alone is never trusted.
+    Safe to call repeatedly (page refresh, React StrictMode double-run):
+    a payment that is already complete just returns its subscription.
     """
     encoded_data = request.data.get("data")
     if not encoded_data:
@@ -86,27 +131,69 @@ def verify_payment(request):
     if not verify_esewa_signature(response_data):
         return Response({"detail": "Signature verification failed."}, status=status.HTTP_400_BAD_REQUEST)
 
-    transaction_uuid = response_data.get("transaction_uuid")
-    payment = get_object_or_404(Payment, transaction_uuid=transaction_uuid)
+    try:
+        payment = Payment.objects.select_related("subscription__household").get(
+            transaction_uuid=response_data.get("transaction_uuid")
+        )
+    except (Payment.DoesNotExist, ValidationError, ValueError):
+        return Response({"detail": "Payment not found."}, status=status.HTTP_404_NOT_FOUND)
 
-    status_check = requests.get(ESEWA_STATUS_CHECK_URL, params={
-        "product_code": ESEWA_PRODUCT_CODE,
-        "total_amount": str(payment.amount),
-        "transaction_uuid": str(payment.transaction_uuid),
-    }, timeout=10)
-    status_check.raise_for_status()
-    confirmed_status = status_check.json().get("status")
+    # 404 (not 403) so nobody can probe for other people's payment ids.
+    if payment.subscription.household.owner_id != request.user.id:
+        return Response({"detail": "Payment not found."}, status=status.HTTP_404_NOT_FOUND)
 
-    if confirmed_status == "COMPLETE":
-        payment.status = "complete"
-        payment.esewa_ref_id = response_data.get("transaction_code", "")
-        payment.verified_at = timezone.now()
-        payment.save()
-        payment.subscription.activate()
+    if payment.status == "complete":
         return Response(HouseholdSubscriptionSerializer(payment.subscription).data)
 
-    payment.status = "failed"
-    payment.save()
-    payment.subscription.status = "payment_failed"
-    payment.subscription.save()
-    return Response({"detail": f"Payment not complete (eSewa status: {confirmed_status})."}, status=status.HTTP_400_BAD_REQUEST)
+    # Ask eSewa directly — the redirect alone is never trusted. This
+    # network call happens BEFORE taking the database lock below.
+    try:
+        status_check = requests.get(ESEWA_STATUS_CHECK_URL, params={
+            "product_code": ESEWA_PRODUCT_CODE,
+            "total_amount": str(payment.amount),
+            "transaction_uuid": str(payment.transaction_uuid),
+        }, timeout=10)
+        status_check.raise_for_status()
+        confirmed_status = status_check.json().get("status")
+    except (requests.RequestException, ValueError):
+        return Response(
+            {"detail": "Could not reach eSewa to confirm this payment. Please try again in a moment."},
+            status=status.HTTP_502_BAD_GATEWAY,
+        )
+
+    if confirmed_status in ("PENDING", "AMBIGUOUS"):
+        return Response(
+            {"detail": "eSewa is still processing this payment. Please refresh in a minute."},
+            status=status.HTTP_409_CONFLICT,
+        )
+
+    try:
+        paid_amount = Decimal(str(response_data.get("total_amount", "")).replace(",", ""))
+    except InvalidOperation:
+        paid_amount = None
+
+    with transaction.atomic():
+        payment = Payment.objects.select_for_update().select_related("subscription").get(pk=payment.pk)
+
+        if payment.status == "complete":  # another request finished it while we were talking to eSewa
+            return Response(HouseholdSubscriptionSerializer(payment.subscription).data)
+
+        if confirmed_status == "COMPLETE" and paid_amount == payment.amount:
+            payment.status = "complete"
+            payment.esewa_ref_id = response_data.get("transaction_code", "")
+            payment.verified_at = timezone.now()
+            payment.save()
+            payment.subscription.activate()
+            return Response(HouseholdSubscriptionSerializer(payment.subscription).data)
+
+        payment.status = "failed"
+        payment.save()
+        if payment.subscription.status == "pending_payment":
+            payment.subscription.status = "payment_failed"
+            payment.subscription.save()
+
+    if confirmed_status == "COMPLETE":
+        detail = "Payment amount did not match the plan price."
+    else:
+        detail = f"Payment not completed (eSewa status: {confirmed_status})."
+    return Response({"detail": detail}, status=status.HTTP_400_BAD_REQUEST)
