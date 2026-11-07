@@ -6,7 +6,7 @@ import {
   getHouseholdQrImageUrl,
 } from "../api/households";
 import { getMyPoints } from "../api/rewards";
-import { getMyRoutes as getMyActiveHouseholdRoute } from "../api/collectorRoutes";
+import { getMyRoutes } from "../api/collectorRoutes";
 import LiveTruckMap from "../components/LiveTruckMap";
 import { isLoggedIn } from "../auth";
 
@@ -44,6 +44,11 @@ function formatPickupCountdown(nextPickup) {
   return text;
 }
 
+function pointsEntryLabel(entry) {
+  if (entry.redemption) return "Reward redeemed";
+  return entry.points > 0 ? "Compliant waste check" : "Non-compliant waste check";
+}
+
 function BadgeAndProgress({ badgeInfo }) {
   if (!badgeInfo) return null;
   const tierClass = TIER_CLASS[badgeInfo.tier] || "tier-bronze";
@@ -68,11 +73,13 @@ function Households({ isStaff }) {
   const [allHouseholds, setAllHouseholds] = useState([]);
   const [points, setPoints] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [activeRoute, setActiveRoute] = useState(null);
   const pollRef = useRef(null);
 
   const loadData = async () => {
     setLoading(true);
+    setLoadError("");
     try {
       if (isStaff) {
         const data = await getHouseholds();
@@ -87,6 +94,7 @@ function Households({ isStaff }) {
       }
     } catch (e) {
       console.error(e);
+      setLoadError("Couldn't load your household. Please refresh the page.");
     } finally {
       setLoading(false);
     }
@@ -94,7 +102,7 @@ function Households({ isStaff }) {
 
   const pollActiveRoute = async () => {
     try {
-      const route = await getMyActiveHouseholdRoute();
+      const route = await getMyRoutes();
       setActiveRoute(route);
     } catch (e) {
       console.error(e);
@@ -126,12 +134,16 @@ function Households({ isStaff }) {
   if (loading) {
     return <div className="page-container"><p>Loading...</p></div>;
   }
+  if (loadError) {
+    return <div className="page-container"><p style={{ color: "red" }}>{loadError}</p></div>;
+  }
 
   if (isStaff) {
     return (
       <div className="page-container">
         <span className="eyebrow">WARD ADMIN</span>
         <h2>All Registered Households</h2>
+        {allHouseholds.length === 0 && <p>No households registered yet.</p>}
         {allHouseholds.map((h) => (
           <div key={h.id} className="card" style={{ marginBottom: 12, display: "flex", gap: 16, alignItems: "center" }}>
             <img src={getHouseholdQrImageUrl(h.id)} alt="QR code" width={70} />
@@ -145,8 +157,12 @@ function Households({ isStaff }) {
     );
   }
 
-  const positiveCount = points.filter((p) => p.points > 0).length;
-  const complianceRate = points.length > 0 ? Math.round((positiveCount / points.length) * 100) : null;
+  // Compliance rate is computed from compliance-sourced entries only —
+  // reward redemptions are negative entries but are NOT failed checks.
+  const complianceEntries = points.filter((p) => p.compliance_check != null);
+  const compliantCount = complianceEntries.filter((p) => p.points > 0).length;
+  const complianceRate =
+    complianceEntries.length > 0 ? Math.round((compliantCount / complianceEntries.length) * 100) : null;
   const totalPoints = myHousehold?.badge_info?.total_points ?? points.reduce((sum, entry) => sum + entry.points, 0);
 
   return (
@@ -204,8 +220,13 @@ function Households({ isStaff }) {
             <span className="eyebrow">POINTS HISTORY</span>
             {points.length === 0 && <p>No activity yet.</p>}
             {points.map((p) => (
-              <div key={p.id} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid var(--color-border)" }}>
-                <span>{new Date(p.created_at).toLocaleDateString()}</span>
+              <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid var(--color-border)" }}>
+                <div>
+                  <p style={{ margin: 0, fontWeight: 500 }}>{pointsEntryLabel(p)}</p>
+                  <p style={{ margin: 0, fontSize: 13, color: "var(--color-text-muted)" }}>
+                    {new Date(p.created_at).toLocaleDateString()}
+                  </p>
+                </div>
                 <span className={p.points > 0 ? "pill pill-success" : "pill pill-warning"}>
                   {p.points > 0 ? "+" : ""}{p.points} pts
                 </span>

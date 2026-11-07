@@ -1,9 +1,7 @@
 import api from "../api";
 
-export const sendChatMessage = async (message, householdQr) => {
-  const res = await api.post("/chat/", {
-    message,
-    household_qr: householdQr,
-  });
+// history: [{ role: "user" | "assistant", content: "..." }, ...] (most recent last)
+export const sendChatMessage = async (message, history = []) => {
+  const res = await api.post("/chat/", { message, history });
   return res.data.reply;
 };
