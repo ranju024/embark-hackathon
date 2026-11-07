@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import SubscriptionPlan, HouseholdSubscription, Payment
+from .models import SubscriptionPlan, HouseholdSubscription, Payment, BulkPickupRequest
 from .services import get_days_remaining, can_renew
 
 
@@ -42,3 +42,17 @@ class HouseholdSubscriptionSerializer(serializers.ModelSerializer):
 
     def get_can_renew(self, obj):
         return can_renew(obj)
+
+
+class BulkPickupRequestSerializer(serializers.ModelSerializer):
+    ward_number = serializers.IntegerField(source="household.ward_number", read_only=True)
+    house_number = serializers.CharField(source="household.house_number", read_only=True)
+    owner_name = serializers.CharField(source="household.owner_name", read_only=True)
+
+    class Meta:
+        model = BulkPickupRequest
+        fields = [
+            "id", "ward_number", "house_number", "owner_name",
+            "pickup_date", "description", "status", "created_at", "completed_at",
+        ]
+        read_only_fields = fields

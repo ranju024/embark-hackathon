@@ -14,6 +14,9 @@ import PaymentResult from "./pages/PaymentResult";
 import Onboarding from "./pages/Onboarding";
 import RewardsHub from "./pages/RewardsHub";
 import WardDashboard from "./pages/WardDashboard";
+import MyServices from "./pages/MyServices";
+import MonthlyReport from "./pages/MonthlyReport";
+import ServiceDesk from "./pages/ServiceDesk";
 
 /**
  * requireLogin: redirect to /login if logged out (default true)
@@ -75,6 +78,7 @@ function AppContent() {
   };
 
   const guardProps = { loggedIn, isStaff, staffReady };
+  const closeMenu = () => setMenuOpen(false);
 
   return (
     <>
@@ -89,20 +93,22 @@ function AppContent() {
         </button>
 
         <div className={`navbar-links ${menuOpen ? "open" : ""}`}>
-          <NavLink to="/" end onClick={() => setMenuOpen(false)}>Home</NavLink>
-          <NavLink to="/households" onClick={() => setMenuOpen(false)}>Households</NavLink>
-          <NavLink to="/scheduling" onClick={() => setMenuOpen(false)}>Scheduling</NavLink>
-          <NavLink to="/compliance" onClick={() => setMenuOpen(false)}>Compliance</NavLink>
-          <NavLink to="/subscriptions" onClick={() => setMenuOpen(false)}>Subscriptions</NavLink>
-          {loggedIn && <NavLink to="/rewards" onClick={() => setMenuOpen(false)}>Rewards</NavLink>}
-          {isStaff && <NavLink to="/ward-dashboard" onClick={() => setMenuOpen(false)}>Ward Dashboard</NavLink>}
-          <NavLink to="/chat" onClick={() => setMenuOpen(false)}>Chat</NavLink>
+          <NavLink to="/" end onClick={closeMenu}>Home</NavLink>
+          <NavLink to="/households" onClick={closeMenu}>Households</NavLink>
+          <NavLink to="/scheduling" onClick={closeMenu}>Scheduling</NavLink>
+          <NavLink to="/compliance" onClick={closeMenu}>Compliance</NavLink>
+          <NavLink to="/subscriptions" onClick={closeMenu}>Subscriptions</NavLink>
+          {loggedIn && !isStaff && <NavLink to="/services" onClick={closeMenu}>My Perks</NavLink>}
+          {loggedIn && <NavLink to="/rewards" onClick={closeMenu}>Rewards</NavLink>}
+          {isStaff && <NavLink to="/ward-dashboard" onClick={closeMenu}>Ward Dashboard</NavLink>}
+          {isStaff && <NavLink to="/service-desk" onClick={closeMenu}>Service Desk</NavLink>}
+          <NavLink to="/chat" onClick={closeMenu}>Chat</NavLink>
           {loggedIn ? (
             <button className="btn btn-outline" onClick={handleLogout}>Log Out</button>
           ) : (
             <>
-              <NavLink to="/login" onClick={() => setMenuOpen(false)}>Login</NavLink>
-              <NavLink to="/register" onClick={() => setMenuOpen(false)}>Register</NavLink>
+              <NavLink to="/login" onClick={closeMenu}>Login</NavLink>
+              <NavLink to="/register" onClick={closeMenu}>Register</NavLink>
             </>
           )}
         </div>
@@ -118,7 +124,10 @@ function AppContent() {
         <Route path="/subscription/payment-failure" element={<RouteGuard {...guardProps}><PaymentResult outcome="failure" /></RouteGuard>} />
         <Route path="/onboarding" element={<RouteGuard {...guardProps}><Onboarding /></RouteGuard>} />
         <Route path="/rewards" element={<RouteGuard {...guardProps}><RewardsHub /></RouteGuard>} />
+        <Route path="/services" element={<RouteGuard {...guardProps}><MyServices /></RouteGuard>} />
+        <Route path="/report" element={<RouteGuard {...guardProps}><MonthlyReport /></RouteGuard>} />
         <Route path="/ward-dashboard" element={<RouteGuard {...guardProps} staffOnly><WardDashboard /></RouteGuard>} />
+        <Route path="/service-desk" element={<RouteGuard {...guardProps} staffOnly><ServiceDesk /></RouteGuard>} />
         <Route path="/chat" element={<Chat />} />
         <Route path="/login" element={<Login onLogin={() => setLoggedIn(true)} />} />
         <Route path="/register" element={<Register onLogin={() => setLoggedIn(true)} />} />

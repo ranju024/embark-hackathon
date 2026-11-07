@@ -1,6 +1,7 @@
 import uuid
 from datetime import timedelta
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
 from households.models import Household
 
@@ -103,3 +104,60 @@ class Payment(models.Model):
 
     def __str__(self):
         return f"Payment {self.transaction_uuid} — {self.status}"
+
+
+class HouseholdServicePreference(models.Model):
+    """
+    A household's choices for plan perks. Stored even if the plan later
+    lapses, but staff-facing lists only honour them while a paid plan
+    with the matching feature covers today.
+    """
+    WINDOW_CHOICES = [
+        ("", "No preference"),
+        ("morning", "Morning (6-10 AM)"),
+        ("midday", "Midday (10 AM-2 PM)"),
+        ("afternoon", "Afternoon (2-6 PM)"),
+    ]
+
+    household = models.OneToOneField(Household, on_delete=models.CASCADE, related_name="service_preference")
+    priority_window = models.CharField(max_length=10, choices=WINDOW_CHOICES, blank=True, default="")
+    compost_pickup = models.BooleanField(default=False)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Preferences for {self.household}"
+
+
+class BulkPickupRequest(models.Model):
+    """
+    A one-off large-waste pickup, paid for with one plan credit. The
+    subscription row records WHICH period's credit was used so a
+    cancellation refunds the right one.
+    """
+    STATUS_CHOICES = [
+        ("scheduled", "Scheduled"),
+        ("completed", "Completed"),
+        ("cancelled", "Cancelled"),
+    ]
+
+    household = models.ForeignKey(Household, on_delete=models.CASCADE, related_name="bulk_pickups")
+    subscription = models.ForeignKey(HouseholdSubscription, on_delete=models.CASCADE, related_name="bulk_pickups")
+    pickup_date = models.DateField()
+    description = models.CharField(max_length=300)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="scheduled")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["pickup_date", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["household", "pickup_date"],
+                condition=Q(status="scheduled"),
+                name="one_scheduled_bulk_pickup_per_household_day",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.household} — bulk pickup {self.pickup_date} ({self.status})"

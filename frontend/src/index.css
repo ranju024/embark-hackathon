@@ -359,3 +359,10 @@ h1, h2, h3 {
   font-size: 0.85rem;
   font-weight: 500;
 }
+
+/* --- Printing: hide navigation and controls so the report prints cleanly --- */
+@media print {
+  .navbar, .no-print { display: none !important; }
+  .page-container { padding: 0; }
+  .card { box-shadow: none; border: 1px solid #ccc; break-inside: avoid; }
+}
