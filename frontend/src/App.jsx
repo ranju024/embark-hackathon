@@ -17,6 +17,7 @@ import WardDashboard from "./pages/WardDashboard";
 import MyServices from "./pages/MyServices";
 import MonthlyReport from "./pages/MonthlyReport";
 import ServiceDesk from "./pages/ServiceDesk";
+import Complaints from "./pages/Complaints";
 
 /**
  * requireLogin: redirect to /login if logged out (default true)
@@ -97,6 +98,7 @@ function AppContent() {
           <NavLink to="/households" onClick={closeMenu}>Households</NavLink>
           <NavLink to="/scheduling" onClick={closeMenu}>Scheduling</NavLink>
           <NavLink to="/compliance" onClick={closeMenu}>Compliance</NavLink>
+          {loggedIn && <NavLink to="/complaints" onClick={closeMenu}>Complaints</NavLink>}
           <NavLink to="/subscriptions" onClick={closeMenu}>Subscriptions</NavLink>
           {loggedIn && !isStaff && <NavLink to="/services" onClick={closeMenu}>My Perks</NavLink>}
           {loggedIn && <NavLink to="/rewards" onClick={closeMenu}>Rewards</NavLink>}
@@ -119,6 +121,7 @@ function AppContent() {
         <Route path="/households" element={<RouteGuard {...guardProps}><Households isStaff={isStaff} /></RouteGuard>} />
         <Route path="/scheduling" element={<RouteGuard {...guardProps} requireLogin={false}><Scheduling isStaff={isStaff} /></RouteGuard>} />
         <Route path="/compliance" element={<RouteGuard {...guardProps}><Compliance isStaff={isStaff} /></RouteGuard>} />
+        <Route path="/complaints" element={<RouteGuard {...guardProps}><Complaints isStaff={isStaff} /></RouteGuard>} />
         <Route path="/subscriptions" element={<SubscriptionPlans />} />
         <Route path="/subscription/payment-success" element={<RouteGuard {...guardProps}><PaymentResult outcome="success" /></RouteGuard>} />
         <Route path="/subscription/payment-failure" element={<RouteGuard {...guardProps}><PaymentResult outcome="failure" /></RouteGuard>} />

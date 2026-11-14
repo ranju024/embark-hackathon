@@ -11,6 +11,19 @@ POINTS_FOR_COMPLIANT_ASSISTED = 5
 POINTS_FOR_NON_COMPLIANT_ASSISTED = 0
 
 
+def points_for_check(check, status):
+    """
+    What a check is worth with the given verdict, judged by the plan the
+    household had on the day of the check (not the day it was reviewed).
+    Shared by the review signal below and by upheld appeals.
+    """
+    check_date = timezone.localtime(check.checked_at).date()
+    assisted = has_plan_feature(check.household, "assisted_segregation", on_date=check_date)
+    if status == "compliant":
+        return POINTS_FOR_COMPLIANT_ASSISTED if assisted else POINTS_FOR_COMPLIANT
+    return POINTS_FOR_NON_COMPLIANT_ASSISTED if assisted else POINTS_FOR_NON_COMPLIANT
+
+
 @receiver(post_save, sender=ComplianceCheck)
 def create_points_entry(sender, instance, created, **kwargs):
     """
@@ -25,17 +38,8 @@ def create_points_entry(sender, instance, created, **kwargs):
     if GreenPointsEntry.objects.filter(compliance_check=instance).exists():
         return
 
-    # Judge by the day the check happened, not the day an officer reviewed it.
-    check_date = timezone.localtime(instance.checked_at).date()
-    assisted = has_plan_feature(instance.household, "assisted_segregation", on_date=check_date)
-
-    if instance.status == "compliant":
-        points = POINTS_FOR_COMPLIANT_ASSISTED if assisted else POINTS_FOR_COMPLIANT
-    else:
-        points = POINTS_FOR_NON_COMPLIANT_ASSISTED if assisted else POINTS_FOR_NON_COMPLIANT
-
     GreenPointsEntry.objects.create(
         household=instance.household,
         compliance_check=instance,
-        points=points,
+        points=points_for_check(instance, instance.status),
     )
