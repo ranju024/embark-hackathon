@@ -37,10 +37,11 @@ def health_check(request):
 _ai_client = OpenAI(
     base_url="https://integrate.api.nvidia.com/v1",
     api_key=os.getenv("NVIDIA_API_KEY"),
+    timeout=30,  # never let a slow provider hang the request
 )
 
 # Pick any chat model from build.nvidia.com's catalog. Swap the string if you want to try another.
-AI_MODEL = "meta/llama-3.2-11b-vision-instruct"
+AI_MODEL = os.getenv("AI_MODEL")
 
 MAX_MESSAGE_CHARS = 1000
 MAX_HISTORY_MESSAGES = 6
@@ -182,7 +183,14 @@ def chat(request):
             messages=messages,
             max_tokens=400,
         )
-        reply = completion.choices[0].message.content
+        reply = (completion.choices[0].message.content or "").strip()
+        if not reply:
+            # Reasoning models can burn the whole token budget thinking and return nothing.
+            logger.warning("AI model returned an empty reply (model=%s)", AI_MODEL)
+            return Response(
+                {"error": "The assistant didn't produce an answer. Please try rephrasing."},
+                status=502,
+            )
         return Response({"reply": reply})
     except Exception:
         logger.exception("AI chat request failed")
