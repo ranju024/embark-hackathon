@@ -3,6 +3,9 @@ import {
   getComplaints, getAppealableChecks, fileComplaint,
   startComplaintReview, resolveComplaint,
 } from "../api/complaints";
+import { Alert, EmptyState, Field, PageHeader, Spinner, StatusPill } from "../components/ui";
+import { formatApiError } from "../lib/errors";
+import PhotoGallery from "../components/PhotoGallery";
 
 const CATEGORY_OPTIONS = [
   ["missed_pickup", "Missed pickup"],
@@ -21,50 +24,27 @@ const STATUS_TABS = [
   ["rejected", "Rejected"],
 ];
 
-function statusPillClass(status) {
-  if (status === "resolved") return "pill pill-success";
-  if (status === "open") return "pill pill-warning";
-  return "pill pill-neutral";
-}
-
-// DRF returns errors as {detail}, {field: [msgs]} or {non_field_errors: [msgs]}.
-function formatApiError(err, fallback) {
-  const data = err.response?.data;
-  if (!data || typeof data === "string") return fallback;
-  if (data.detail) return data.detail;
-  const parts = Object.values(data).flat().filter((v) => typeof v === "string");
-  return parts.length ? parts.join(" ") : fallback;
-}
-
-function ComplaintDetails({ complaint, showHousehold }) {
+function ComplaintDetails({ complaint }) {
   return (
     <>
-      {showHousehold && (
-        <p style={{ margin: "0 0 4px", fontWeight: 600 }}>
-          Ward {complaint.ward_number} — House {complaint.house_number} · {complaint.owner_name}
-        </p>
-      )}
-      <p style={{ margin: "0 0 4px", fontSize: 13, color: "var(--color-text-muted)" }}>
-        {complaint.category_display} · filed {new Date(complaint.created_at).toLocaleDateString()}
-      </p>
-      <p style={{ margin: "4px 0" }}>{complaint.description}</p>
+      <p style={{ marginBottom: 6 }}>{complaint.description}</p>
       {complaint.check_summary && (
-        <p style={{ margin: "4px 0", fontSize: 13 }}>
+        <p className="list-item-meta">
           Appeal against the {new Date(complaint.check_summary.date).toLocaleDateString()} check:{" "}
-          {complaint.check_summary.waste_type}, {complaint.check_summary.weight_kg.toFixed(2)} kg,
-          marked {complaint.check_summary.status.replace("_", " ")}
+          {complaint.check_summary.waste_type}, {complaint.check_summary.weight_kg.toFixed(2)} kg, marked{" "}
+          {complaint.check_summary.status.replace("_", " ")}.
         </p>
       )}
       {complaint.photo && (
-        <a href={complaint.photo} target="_blank" rel="noreferrer">
-          <img src={complaint.photo} alt="Complaint evidence" width={140} style={{ borderRadius: "var(--radius)", marginTop: 4 }} />
-        </a>
+        <div className="mt-sm">
+          <PhotoGallery urls={[complaint.photo]} size={140} alt="Complaint evidence" />
+        </div>
       )}
       {complaint.resolution_notes && (
-        <p style={{ margin: "8px 0 0", padding: 8, background: "var(--color-surface, #f4f6f4)", borderRadius: "var(--radius)" }}>
+        <div className="callout">
           <strong>Officer's response{complaint.handled_by_username ? ` (${complaint.handled_by_username})` : ""}:</strong>{" "}
           {complaint.resolution_notes}
-        </p>
+        </div>
       )}
     </>
   );
@@ -126,74 +106,95 @@ function ResidentComplaints() {
     }
   };
 
-  if (loading) return <p>Loading...</p>;
-  if (loadError) return <p style={{ color: "red" }}>{loadError}</p>;
+  if (loading) return <Spinner />;
+  if (loadError) return <Alert kind="error">{loadError}</Alert>;
+
+  const isAppeal = category === "appeal";
 
   return (
-    <>
-      <div className="card" style={{ marginBottom: 20 }}>
-        <span className="eyebrow">FILE A COMPLAINT OR APPEAL</span>
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
-          <select value={category} onChange={(e) => setCategory(e.target.value)}>
-            {CATEGORY_OPTIONS.map(([value, label]) => (
-              <option key={value} value={value}>{label}</option>
-            ))}
-          </select>
+    <div className="stack-lg">
+      <div className="card">
+        <div className="card-header">
+          <span className="eyebrow">File a complaint or appeal</span>
+        </div>
+        <form onSubmit={handleSubmit} className="stack">
+          <Field label="What is this about?">
+            <select value={category} onChange={(e) => setCategory(e.target.value)}>
+              {CATEGORY_OPTIONS.map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </Field>
 
-          {category === "appeal" && (
+          {isAppeal && (
             appealable.length > 0 ? (
-              <select value={checkId} onChange={(e) => setCheckId(e.target.value)} required>
-                <option value="">Select the result to appeal</option>
-                {appealable.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {new Date(c.checked_on).toLocaleDateString()} — {c.waste_type}, {c.weight_kg.toFixed(2)} kg
-                    (appeal by {new Date(c.appeal_deadline).toLocaleDateString()})
-                  </option>
-                ))}
-              </select>
+              <Field label="Result to appeal" hint="You can appeal within 7 days of the officer's review.">
+                <select value={checkId} onChange={(e) => setCheckId(e.target.value)} required>
+                  <option value="">Select a result</option>
+                  {appealable.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {new Date(c.checked_on).toLocaleDateString()} · {c.waste_type}, {c.weight_kg.toFixed(2)} kg
+                      (appeal by {new Date(c.appeal_deadline).toLocaleDateString()})
+                    </option>
+                  ))}
+                </select>
+              </Field>
             ) : (
-              <p style={{ margin: 0, color: "var(--color-text-muted)" }}>
+              <Alert kind="info">
                 No results can be appealed right now. You can appeal a non-compliant result within 7 days of it being reviewed.
-              </p>
+              </Alert>
             )
           )}
 
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder={category === "appeal" ? "Explain why this result should be changed (at least 10 characters)" : "Describe the problem (at least 10 characters)"}
-            rows={4}
-            maxLength={1000}
-            required
-          />
-          <input key={fileKey} type="file" accept="image/*" onChange={(e) => setPhoto(e.target.files[0] || null)} />
-          <small style={{ color: "var(--color-text-muted)" }}>Optional photo, up to 5 MB.</small>
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={submitting || (category === "appeal" && appealable.length === 0)}
+          <Field
+            label={isAppeal ? "Why should this result change?" : "Describe the problem"}
+            hint="At least 10 characters."
           >
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={4}
+              maxLength={1000}
+              required
+            />
+          </Field>
+
+          <Field label="Photo (optional)" hint="Up to 5 MB.">
+            <input key={fileKey} type="file" accept="image/*" onChange={(e) => setPhoto(e.target.files[0] || null)} />
+          </Field>
+
+          <button type="submit" className="btn btn-primary" disabled={submitting || (isAppeal && appealable.length === 0)}>
             {submitting ? "Submitting..." : "Submit"}
           </button>
         </form>
-        {message && <p style={{ color: "var(--color-primary)" }}>{message}</p>}
-        {error && <p style={{ color: "red" }}>{error}</p>}
+        <Alert kind="success">{message}</Alert>
+        <Alert kind="error">{error}</Alert>
       </div>
 
-      <div className="card">
-        <span className="eyebrow">YOUR COMPLAINTS</span>
-        {complaints.length === 0 && <p>You haven't filed any complaints.</p>}
-        {complaints.map((c) => (
-          <div key={c.id} style={{ padding: "14px 0", borderBottom: "1px solid var(--color-border)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
-              <span />
-              <span className={statusPillClass(c.status)}>{c.status_display}</span>
-            </div>
-            <ComplaintDetails complaint={c} />
+      <div>
+        <h3>Your complaints</h3>
+        {complaints.length === 0 ? (
+          <div className="card">
+            <EmptyState icon="check" title="Nothing filed">You haven't filed any complaints.</EmptyState>
           </div>
-        ))}
+        ) : (
+          <div className="stack">
+            {complaints.map((c) => (
+              <div key={c.id} className="card">
+                <div className="card-header">
+                  <div>
+                    <p className="list-item-title">{c.category_display}</p>
+                    <p className="list-item-meta">Filed {new Date(c.created_at).toLocaleDateString()}</p>
+                  </div>
+                  <StatusPill status={c.status}>{c.status_display}</StatusPill>
+                </div>
+                <ComplaintDetails complaint={c} />
+              </div>
+            ))}
+          </div>
+        )}
       </div>
-    </>
+    </div>
   );
 }
 
@@ -222,34 +223,38 @@ function StaffComplaintCard({ complaint, onChanged }) {
   };
 
   return (
-    <div style={{ padding: "16px 0", borderBottom: "1px solid var(--color-border)" }}>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 4 }}>
-        <span className={statusPillClass(complaint.status)}>{complaint.status_display}</span>
+    <div className="card">
+      <div className="card-header">
+        <div>
+          <p className="list-item-title">Ward {complaint.ward_number} — House {complaint.house_number}</p>
+          <p className="list-item-meta">
+            {complaint.owner_name} · {complaint.category_display} · {new Date(complaint.created_at).toLocaleDateString()}
+          </p>
+        </div>
+        <StatusPill status={complaint.status}>{complaint.status_display}</StatusPill>
       </div>
-      <ComplaintDetails complaint={complaint} showHousehold />
+
+      <ComplaintDetails complaint={complaint} />
 
       {!isClosed && (
-        <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+        <div className="stack mt">
           {complaint.status === "open" && (
-            <div>
-              <button className="btn btn-outline" disabled={busy} onClick={() => run(() => startComplaintReview(complaint.id))}>
+            <div className="actions">
+              <button className="btn btn-outline btn-sm" disabled={busy} onClick={() => run(() => startComplaintReview(complaint.id))}>
                 Start review
               </button>
             </div>
           )}
-          <input
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Response the resident will read (required)"
-            maxLength={300}
-          />
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <Field label="Your response" hint="The resident will read this. It's required to close the complaint.">
+            <input value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={300} />
+          </Field>
+          <div className="actions actions-stack">
             <button
               className="btn btn-primary"
               disabled={busy || !notes.trim()}
               onClick={() => run(() => resolveComplaint(complaint.id, "resolved", notes))}
             >
-              {isAppeal ? "Uphold appeal (marks check compliant, restores points)" : "Mark resolved"}
+              {isAppeal ? "Uphold appeal" : "Mark resolved"}
             </button>
             <button
               className="btn btn-accent"
@@ -259,9 +264,14 @@ function StaffComplaintCard({ complaint, onChanged }) {
               {isAppeal ? "Reject appeal" : "Reject"}
             </button>
           </div>
+          {isAppeal && (
+            <small className="muted">
+              Upholding an appeal marks the check compliant and restores the household's points.
+            </small>
+          )}
         </div>
       )}
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      <Alert kind="error">{error}</Alert>
     </div>
   );
 }
@@ -290,38 +300,44 @@ function StaffQueue() {
 
   return (
     <>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+      <div className="tabs" role="tablist" aria-label="Complaint status">
         {STATUS_TABS.map(([value, label]) => (
           <button
             key={value}
-            className={tab === value ? "btn btn-primary" : "btn btn-outline"}
+            role="tab"
+            aria-selected={tab === value}
+            className={`chip${tab === value ? " active" : ""}`}
             onClick={() => setTab(value)}
           >
             {label}
           </button>
         ))}
       </div>
-      <form
-        onSubmit={(e) => { e.preventDefault(); setWard(wardInput.trim()); }}
-        style={{ display: "flex", gap: 8, marginBottom: 16 }}
-      >
+
+      <form onSubmit={(e) => { e.preventDefault(); setWard(wardInput.trim()); }} className="scan-row mb">
         <input
           type="number" min="1" max="29" value={wardInput}
           onChange={(e) => setWardInput(e.target.value)}
           placeholder="Filter by ward (blank = all)"
+          aria-label="Filter by ward"
         />
         <button type="submit" className="btn btn-outline">Apply</button>
       </form>
 
-      {error && <p style={{ color: "red" }}>{error}</p>}
-      {loading && <p>Loading...</p>}
+      <Alert kind="error">{error}</Alert>
+      {loading && <Spinner />}
       {!loading && !error && (
-        <div className="card">
-          {complaints.length === 0 && <p>Nothing here.</p>}
-          {complaints.map((c) => (
-            <StaffComplaintCard key={c.id} complaint={c} onChanged={load} />
-          ))}
-        </div>
+        complaints.length === 0 ? (
+          <div className="card">
+            <EmptyState icon="check" title="Nothing here">No complaints match this filter.</EmptyState>
+          </div>
+        ) : (
+          <div className="stack">
+            {complaints.map((c) => (
+              <StaffComplaintCard key={c.id} complaint={c} onChanged={load} />
+            ))}
+          </div>
+        )
       )}
     </>
   );
@@ -332,8 +348,11 @@ function StaffQueue() {
 function Complaints({ isStaff }) {
   return (
     <div className="page-container">
-      <span className="eyebrow">{isStaff ? "STAFF" : "COMPLAINTS & APPEALS"}</span>
-      <h2>{isStaff ? "Complaint queue" : "Complaints & appeals"}</h2>
+      <PageHeader
+        eyebrow={isStaff ? "STAFF" : "COMPLAINTS & APPEALS"}
+        title={isStaff ? "Complaint queue" : "Complaints & appeals"}
+        subtitle={isStaff ? "Review complaints, then resolve or reject them with a note." : "Tell us about a problem, or appeal a compliance result."}
+      />
       {isStaff ? <StaffQueue /> : <ResidentComplaints />}
     </div>
   );

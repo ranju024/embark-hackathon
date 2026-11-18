@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { BrowserRouter, Routes, Route, NavLink, Navigate, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { getMe } from "./api";
 import { isLoggedIn, logout } from "./auth";
+import Nav from "./components/Nav";
 import Home from "./pages/Home";
 import Households from "./pages/Households";
 import Login from "./pages/Login";
@@ -18,6 +19,7 @@ import MyServices from "./pages/MyServices";
 import MonthlyReport from "./pages/MonthlyReport";
 import ServiceDesk from "./pages/ServiceDesk";
 import Complaints from "./pages/Complaints";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 /**
  * requireLogin: redirect to /login if logged out (default true)
@@ -45,8 +47,8 @@ function AppContent() {
   const [loggedIn, setLoggedIn] = useState(isLoggedIn());
   const [isStaff, setIsStaff] = useState(false);
   const [staffReady, setStaffReady] = useState(!isLoggedIn());
-  const [menuOpen, setMenuOpen] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     if (loggedIn) {
@@ -74,68 +76,39 @@ function AppContent() {
   const handleLogout = () => {
     logout();
     setLoggedIn(false);
-    setMenuOpen(false);
     navigate("/");
   };
 
   const guardProps = { loggedIn, isStaff, staffReady };
-  const closeMenu = () => setMenuOpen(false);
 
   return (
     <>
-      <nav className="navbar">
-        <div className="navbar-brand">
-          <span className="navbar-logo">W</span>
-          Waste Warrior
-        </div>
+      <Nav loggedIn={loggedIn} isStaff={isStaff} ready={staffReady} onLogout={handleLogout} />
 
-        <button className="navbar-toggle" onClick={() => setMenuOpen((prev) => !prev)}>
-          ☰
-        </button>
-
-        <div className={`navbar-links ${menuOpen ? "open" : ""}`}>
-          <NavLink to="/" end onClick={closeMenu}>Home</NavLink>
-          <NavLink to="/households" onClick={closeMenu}>Households</NavLink>
-          <NavLink to="/scheduling" onClick={closeMenu}>Scheduling</NavLink>
-          <NavLink to="/compliance" onClick={closeMenu}>Compliance</NavLink>
-          {loggedIn && <NavLink to="/complaints" onClick={closeMenu}>Complaints</NavLink>}
-          <NavLink to="/subscriptions" onClick={closeMenu}>Subscriptions</NavLink>
-          {loggedIn && !isStaff && <NavLink to="/services" onClick={closeMenu}>My Perks</NavLink>}
-          {loggedIn && <NavLink to="/rewards" onClick={closeMenu}>Rewards</NavLink>}
-          {isStaff && <NavLink to="/ward-dashboard" onClick={closeMenu}>Ward Dashboard</NavLink>}
-          {isStaff && <NavLink to="/service-desk" onClick={closeMenu}>Service Desk</NavLink>}
-          <NavLink to="/chat" onClick={closeMenu}>Chat</NavLink>
-          {loggedIn ? (
-            <button className="btn btn-outline" onClick={handleLogout}>Log Out</button>
-          ) : (
-            <>
-              <NavLink to="/login" onClick={closeMenu}>Login</NavLink>
-              <NavLink to="/register" onClick={closeMenu}>Register</NavLink>
-            </>
-          )}
-        </div>
-      </nav>
-
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/households" element={<RouteGuard {...guardProps}><Households isStaff={isStaff} /></RouteGuard>} />
-        <Route path="/scheduling" element={<RouteGuard {...guardProps} requireLogin={false}><Scheduling isStaff={isStaff} /></RouteGuard>} />
-        <Route path="/compliance" element={<RouteGuard {...guardProps}><Compliance isStaff={isStaff} /></RouteGuard>} />
-        <Route path="/complaints" element={<RouteGuard {...guardProps}><Complaints isStaff={isStaff} /></RouteGuard>} />
-        <Route path="/subscriptions" element={<SubscriptionPlans />} />
-        <Route path="/subscription/payment-success" element={<RouteGuard {...guardProps}><PaymentResult outcome="success" /></RouteGuard>} />
-        <Route path="/subscription/payment-failure" element={<RouteGuard {...guardProps}><PaymentResult outcome="failure" /></RouteGuard>} />
-        <Route path="/onboarding" element={<RouteGuard {...guardProps}><Onboarding /></RouteGuard>} />
-        <Route path="/rewards" element={<RouteGuard {...guardProps}><RewardsHub /></RouteGuard>} />
-        <Route path="/services" element={<RouteGuard {...guardProps}><MyServices /></RouteGuard>} />
-        <Route path="/report" element={<RouteGuard {...guardProps}><MonthlyReport /></RouteGuard>} />
-        <Route path="/ward-dashboard" element={<RouteGuard {...guardProps} staffOnly><WardDashboard /></RouteGuard>} />
-        <Route path="/service-desk" element={<RouteGuard {...guardProps} staffOnly><ServiceDesk /></RouteGuard>} />
-        <Route path="/chat" element={<Chat />} />
-        <Route path="/login" element={<Login onLogin={() => setLoggedIn(true)} />} />
-        <Route path="/register" element={<Register onLogin={() => setLoggedIn(true)} />} />
-        <Route path="*" element={<div className="page-container"><h2>Page not found</h2></div>} />
-      </Routes>
+      <main className="app-main">
+        <ErrorBoundary key={location.pathname}>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/households" element={<RouteGuard {...guardProps}><Households isStaff={isStaff} /></RouteGuard>} />
+          <Route path="/scheduling" element={<RouteGuard {...guardProps} requireLogin={false}><Scheduling isStaff={isStaff} /></RouteGuard>} />
+          <Route path="/compliance" element={<RouteGuard {...guardProps} staffOnly><Compliance isStaff={isStaff} /></RouteGuard>} />
+          <Route path="/complaints" element={<RouteGuard {...guardProps}><Complaints isStaff={isStaff} /></RouteGuard>} />
+          <Route path="/subscriptions" element={<SubscriptionPlans />} />
+          <Route path="/subscription/payment-success" element={<RouteGuard {...guardProps}><PaymentResult outcome="success" /></RouteGuard>} />
+          <Route path="/subscription/payment-failure" element={<RouteGuard {...guardProps}><PaymentResult outcome="failure" /></RouteGuard>} />
+          <Route path="/onboarding" element={<RouteGuard {...guardProps}><Onboarding /></RouteGuard>} />
+          <Route path="/rewards" element={<RouteGuard {...guardProps}><RewardsHub /></RouteGuard>} />
+          <Route path="/services" element={<RouteGuard {...guardProps}><MyServices /></RouteGuard>} />
+          <Route path="/report" element={<RouteGuard {...guardProps}><MonthlyReport /></RouteGuard>} />
+          <Route path="/ward-dashboard" element={<RouteGuard {...guardProps} staffOnly><WardDashboard /></RouteGuard>} />
+          <Route path="/service-desk" element={<RouteGuard {...guardProps} staffOnly><ServiceDesk /></RouteGuard>} />
+          <Route path="/chat" element={<RouteGuard {...guardProps} requireLogin={false}><Chat isStaff={isStaff} /></RouteGuard>} />          <Route path="/login" element={<Login onLogin={() => setLoggedIn(true)} />} />
+          <Route path="/login" element={<Login onLogin={() => setLoggedIn(true)} />} />
+          <Route path="/register" element={<Register onLogin={() => setLoggedIn(true)} />} />
+          <Route path="*" element={<div className="page-container"><h2>Page not found</h2></div>} />
+        </Routes>
+        </ErrorBoundary>
+      </main>
     </>
   );
 }

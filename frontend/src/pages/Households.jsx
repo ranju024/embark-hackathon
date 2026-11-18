@@ -1,13 +1,11 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import {
-  getMyHousehold,
-  getHouseholds,
-  getHouseholdQrImageUrl,
-} from "../api/households";
+import { getMyHousehold, getHouseholds, getHouseholdQrImageUrl } from "../api/households";
 import { getMyPoints } from "../api/rewards";
 import { getMyRoutes } from "../api/collectorRoutes";
 import LiveTruckMap from "../components/LiveTruckMap";
+import Icon from "../components/Icon";
+import { Alert, EmptyState, PageHeader, Spinner } from "../components/ui";
 import { isLoggedIn } from "../auth";
 
 const TIER_CLASS = {
@@ -18,6 +16,14 @@ const TIER_CLASS = {
 };
 
 const ROUTE_POLL_INTERVAL_MS = 15000;
+const HISTORY_PREVIEW = 8;
+
+function greeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
 
 function formatPickupCountdown(nextPickup) {
   if (!nextPickup) return "No pickup schedule set for your ward yet.";
@@ -35,7 +41,7 @@ function formatPickupCountdown(nextPickup) {
   let when;
   if (dayDiff === 0) when = "Today";
   else if (dayDiff === 1) when = "Tomorrow";
-  else when = `${dayLabel}`;
+  else when = dayLabel;
 
   let text = `Next pickup: ${when} · ${timeLabel}`;
   if (nextPickup.is_delayed) {
@@ -54,16 +60,16 @@ function BadgeAndProgress({ badgeInfo }) {
   const tierClass = TIER_CLASS[badgeInfo.tier] || "tier-bronze";
 
   return (
-    <div style={{ marginTop: 12 }}>
+    <div className="banner-panel">
       <span className={`badge-pill ${tierClass}`}>{badgeInfo.tier}</span>
       <div className="progress-track">
         <div className={`progress-fill ${tierClass}`} style={{ width: `${badgeInfo.progress_percent}%` }} />
       </div>
-      <p style={{ margin: 0, fontSize: "0.8rem", opacity: 0.8 }}>
+      <small style={{ opacity: 0.85 }}>
         {badgeInfo.next_tier
           ? `${badgeInfo.points_to_next_tier} points to ${badgeInfo.next_tier}`
           : "Highest tier reached"}
-      </p>
+      </small>
     </div>
   );
 }
@@ -75,6 +81,8 @@ function Households({ isStaff }) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [activeRoute, setActiveRoute] = useState(null);
+  const [query, setQuery] = useState("");
+  const [showAllHistory, setShowAllHistory] = useState(false);
   const pollRef = useRef(null);
 
   const loadData = async () => {
@@ -82,15 +90,11 @@ function Households({ isStaff }) {
     setLoadError("");
     try {
       if (isStaff) {
-        const data = await getHouseholds();
-        setAllHouseholds(data);
+        setAllHouseholds(await getHouseholds());
       } else {
         const household = await getMyHousehold();
         setMyHousehold(household);
-        if (household) {
-          const pointsData = await getMyPoints();
-          setPoints(pointsData);
-        }
+        if (household) setPoints(await getMyPoints());
       }
     } catch (e) {
       console.error(e);
@@ -102,150 +106,217 @@ function Households({ isStaff }) {
 
   const pollActiveRoute = async () => {
     try {
-      const route = await getMyRoutes();
-      setActiveRoute(route);
+      setActiveRoute(await getMyRoutes());
     } catch (e) {
       console.error(e);
     }
   };
 
   useEffect(() => {
-    if (isLoggedIn()) {
-      loadData();
-    } else {
-      setLoading(false);
-    }
+    if (isLoggedIn()) loadData();
+    else setLoading(false);
   }, [isStaff]);
 
   useEffect(() => {
-    if (!isLoggedIn() || isStaff) return;
+    if (!isLoggedIn() || isStaff) return undefined;
     pollActiveRoute();
     pollRef.current = setInterval(pollActiveRoute, ROUTE_POLL_INTERVAL_MS);
     return () => clearInterval(pollRef.current);
   }, [isStaff]);
 
+  const filteredHouseholds = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return allHouseholds;
+    return allHouseholds.filter((h) =>
+      `${h.owner_name} ${h.owner_username} ${h.house_number} ward ${h.ward_number}`.toLowerCase().includes(q)
+    );
+  }, [allHouseholds, query]);
+
+  const sortedPoints = useMemo(
+    () => [...points].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)),
+    [points]
+  );
+
   if (!isLoggedIn()) {
     return (
       <div className="page-container">
-        <p>Please log in or register an account to manage your household.</p>
+        <EmptyState
+          icon="users"
+          title="Log in to see your household"
+          action={<Link to="/login" className="btn btn-primary">Log in</Link>}
+        >
+          Your dashboard, points and QR code live here.
+        </EmptyState>
       </div>
     );
   }
-  if (loading) {
-    return <div className="page-container"><p>Loading...</p></div>;
-  }
-  if (loadError) {
-    return <div className="page-container"><p style={{ color: "red" }}>{loadError}</p></div>;
-  }
+  if (loading) return <div className="page-container"><Spinner /></div>;
+  if (loadError) return <div className="page-container"><Alert kind="error">{loadError}</Alert></div>;
 
+  /* ------------------------------------------------------------ staff */
   if (isStaff) {
     return (
       <div className="page-container">
-        <span className="eyebrow">WARD ADMIN</span>
-        <h2>All Registered Households</h2>
-        {allHouseholds.length === 0 && <p>No households registered yet.</p>}
-        {allHouseholds.map((h) => (
-          <div key={h.id} className="card" style={{ marginBottom: 12, display: "flex", gap: 16, alignItems: "center" }}>
-            <img src={getHouseholdQrImageUrl(h.id)} alt="QR code" width={70} />
-            <div>
-              <p style={{ margin: 0, fontWeight: 600 }}>Ward {h.ward_number} — House {h.house_number}</p>
-              <p style={{ margin: 0, color: "var(--color-text-muted)" }}>{h.owner_name} · owner: {h.owner_username}</p>
-            </div>
+        <PageHeader
+          eyebrow="WARD ADMIN"
+          title="Registered households"
+          subtitle={`${allHouseholds.length} household${allHouseholds.length === 1 ? "" : "s"} registered.`}
+        />
+        <input
+          className="mb"
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search by name, house number or ward"
+          aria-label="Search households"
+        />
+        {filteredHouseholds.length === 0 ? (
+          <div className="card">
+            <EmptyState icon="users" title="No households found">
+              {allHouseholds.length === 0 ? "Nobody has registered yet." : "Try a different search."}
+            </EmptyState>
           </div>
-        ))}
+        ) : (
+          <div className="grid-auto">
+            {filteredHouseholds.map((h) => (
+              <div key={h.id} className="card media">
+                <img className="qr-small" src={getHouseholdQrImageUrl(h.id)} alt="QR code" />
+                <div className="media-body">
+                  <p className="list-item-title">Ward {h.ward_number} — House {h.house_number}</p>
+                  <p className="list-item-meta">{h.owner_name} · {h.owner_username}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
 
-  // Compliance rate is computed from compliance-sourced entries only —
-  // reward redemptions are negative entries but are NOT failed checks.
+  /* --------------------------------------------------------- resident */
+  if (!myHousehold) {
+    return (
+      <div className="page-container">
+        <div className="card">
+          <EmptyState
+            icon="home"
+            title="Join Waste Warrior"
+            action={<Link to="/onboarding" className="btn btn-primary">Start registration</Link>}
+          >
+            Register your household to get your QR code and start earning GreenPoints.
+          </EmptyState>
+        </div>
+      </div>
+    );
+  }
+
   const complianceEntries = points.filter((p) => p.compliance_check != null);
   const compliantCount = complianceEntries.filter((p) => p.points > 0).length;
   const complianceRate =
     complianceEntries.length > 0 ? Math.round((compliantCount / complianceEntries.length) * 100) : null;
-  const totalPoints = myHousehold?.badge_info?.total_points ?? points.reduce((sum, entry) => sum + entry.points, 0);
+  const totalPoints = myHousehold.badge_info?.total_points ?? points.reduce((sum, entry) => sum + entry.points, 0);
+  const visibleHistory = showAllHistory ? sortedPoints : sortedPoints.slice(0, HISTORY_PREVIEW);
 
   return (
     <div className="page-container">
-      {myHousehold ? (
-        <>
-          <div className="header-banner">
-            <span className="eyebrow">GOOD DAY</span>
-            <h2>{myHousehold.owner_name}</h2>
-            <p style={{ margin: 0, opacity: 0.8 }}>
-              H.No {myHousehold.house_number} · Ward {myHousehold.ward_number}
-            </p>
+      <section className="header-banner">
+        <span className="eyebrow">{greeting()}</span>
+        <h2>{myHousehold.owner_name}</h2>
+        <p style={{ marginBottom: 0 }}>H.No {myHousehold.house_number} · Ward {myHousehold.ward_number}</p>
 
-            <div className="stat-pill">
-              <span className="stat-value">{totalPoints}</span>
-              <span className="stat-label">GreenPoints</span>
-            </div>
-            {complianceRate !== null && (
-              <div className="stat-pill">
-                <span className="stat-value">{complianceRate}%</span>
-                <span className="stat-label">Compliance rate</span>
-              </div>
-            )}
-
-            <BadgeAndProgress badgeInfo={myHousehold.badge_info} />
-
-            <p className={`pickup-countdown ${myHousehold.next_pickup?.is_delayed ? "is-delayed" : ""}`}>
-              {formatPickupCountdown(myHousehold.next_pickup)}
-            </p>
+        <div className="banner-stats">
+          <div className="stat-pill">
+            <span className="stat-value">{totalPoints}</span>
+            <span className="stat-label">GreenPoints</span>
           </div>
-
-          {activeRoute && (
-            <div className="card" style={{ marginBottom: 16 }}>
-              <span className="eyebrow">COLLECTOR ON THE WAY</span>
-              {activeRoute.current_lat && activeRoute.current_lng ? (
-                <LiveTruckMap
-                  lat={activeRoute.current_lat}
-                  lng={activeRoute.current_lng}
-                  label="Your collector"
-                />
-              ) : (
-                <p>Your collector has started their route — waiting for their first location update.</p>
-              )}
+          {complianceRate !== null && (
+            <div className="stat-pill">
+              <span className="stat-value">{complianceRate}%</span>
+              <span className="stat-label">Compliance rate</span>
             </div>
           )}
+        </div>
 
-          <div className="card" style={{ marginBottom: 16, textAlign: "center" }}>
-            <span className="eyebrow">YOUR HOUSEHOLD QR</span>
-            <div>
-              <img src={getHouseholdQrImageUrl(myHousehold.id)} alt="QR code" width={150} />
+        <BadgeAndProgress badgeInfo={myHousehold.badge_info} />
+
+        <p className={`pickup-countdown ${myHousehold.next_pickup?.is_delayed ? "is-delayed" : ""}`}>
+          <Icon name="calendar" size={16} />
+          {formatPickupCountdown(myHousehold.next_pickup)}
+        </p>
+      </section>
+
+      {activeRoute && (
+        <div className="card mb">
+          <div className="card-header">
+            <span className="eyebrow">Collector on the way</span>
+          </div>
+          {activeRoute.current_lat && activeRoute.current_lng ? (
+            <LiveTruckMap lat={activeRoute.current_lat} lng={activeRoute.current_lng} label="Your collector" />
+          ) : (
+            <p className="muted" style={{ marginBottom: 0 }}>
+              Your collector has started their route. Waiting for their first location update.
+            </p>
+          )}
+        </div>
+      )}
+
+      <div className="dashboard-grid">
+        <div className="card">
+          <div className="card-header">
+            <span className="eyebrow">Points history</span>
+            {sortedPoints.length > 0 && <span className="muted">{sortedPoints.length} entries</span>}
+          </div>
+
+          {sortedPoints.length === 0 ? (
+            <EmptyState icon="star" title="No activity yet">
+              Your points will appear here after your first waste check.
+            </EmptyState>
+          ) : (
+            <>
+              {visibleHistory.map((p) => (
+                <div key={p.id} className="list-item">
+                  <div className="list-item-main">
+                    <p className="list-item-title">{pointsEntryLabel(p)}</p>
+                    <p className="list-item-meta">{new Date(p.created_at).toLocaleDateString()}</p>
+                  </div>
+                  <span className={p.points > 0 ? "pill pill-success" : "pill pill-warning"}>
+                    {p.points > 0 ? "+" : ""}{p.points} pts
+                  </span>
+                </div>
+              ))}
+              {sortedPoints.length > HISTORY_PREVIEW && (
+                <div className="actions mt">
+                  <button className="btn btn-outline btn-sm" onClick={() => setShowAllHistory((v) => !v)}>
+                    {showAllHistory ? "Show fewer" : `Show all ${sortedPoints.length}`}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="stack-lg">
+          <div className="card qr-card">
+            <div className="card-header">
+              <span className="eyebrow">Your household QR</span>
             </div>
+            <img className="qr-img" src={getHouseholdQrImageUrl(myHousehold.id)} alt="Your household QR code" />
+            <p className="muted mt-sm" style={{ marginBottom: 0 }}>Show this to your collector at pickup.</p>
           </div>
 
           <div className="card">
-            <span className="eyebrow">POINTS HISTORY</span>
-            {points.length === 0 && <p>No activity yet.</p>}
-            {points.map((p) => (
-              <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid var(--color-border)" }}>
-                <div>
-                  <p style={{ margin: 0, fontWeight: 500 }}>{pointsEntryLabel(p)}</p>
-                  <p style={{ margin: 0, fontSize: 13, color: "var(--color-text-muted)" }}>
-                    {new Date(p.created_at).toLocaleDateString()}
-                  </p>
-                </div>
-                <span className={p.points > 0 ? "pill pill-success" : "pill pill-warning"}>
-                  {p.points > 0 ? "+" : ""}{p.points} pts
-                </span>
-              </div>
-            ))}
+            <div className="card-header">
+              <span className="eyebrow">Quick links</span>
+            </div>
+            <div className="actions">
+              <Link to="/services" className="btn btn-outline btn-sm">My perks</Link>
+              <Link to="/rewards" className="btn btn-outline btn-sm">Rewards</Link>
+              <Link to="/complaints" className="btn btn-outline btn-sm">Complaints</Link>
+              <Link to="/subscriptions" className="btn btn-outline btn-sm">Plans</Link>
+            </div>
           </div>
-        </>
-      ) : (
-        <div className="card">
-          <span className="eyebrow">HOUSEHOLD REGISTRATION</span>
-          <h2>Join Waste Warrior</h2>
-          <p style={{ color: "var(--color-text-muted)" }}>
-            Register your household to receive your waste segregation kit and start earning GreenPoints.
-          </p>
-          <Link to="/onboarding" className="btn btn-primary" style={{ marginTop: 16, display: "inline-block" }}>
-            Start Registration →
-          </Link>
         </div>
-      )}
+      </div>
     </div>
   );
 }

@@ -101,7 +101,7 @@ function WardDashboard() {
     try {
       await updateRouteStatus(routeId, newStatus);
       if (!ACTIVE_STATUSES.includes(newStatus)) {
-        stopBroadcasting(routeId); // fixed leaving completed/missed intervals running 
+        stopBroadcasting(routeId); // leaving completed/missed intervals running was the exact bug we just fixed
       }
       loadRoutes();
       loadMyRoutes();
@@ -123,7 +123,9 @@ function WardDashboard() {
           );
           setMyRoutes((prev) => prev.map((r) => (r.id === routeId ? updated : r)));
         } catch (e) {
-          // Route is no longer active server-side 
+          // Route is no longer active server-side (e.g. marked completed
+          // from another tab/device) — stop this interval instead of
+          // repeatedly failing.
           stopBroadcasting(routeId);
           setBroadcastError(e.response?.data?.detail || "Could not update location.");
         }
