@@ -4,6 +4,9 @@ import {
   getServicePreferences, updateServicePreferences,
   getBulkPickups, requestBulkPickup, cancelBulkPickup,
 } from "../api/premium";
+import { PageHeader, Alert, Spinner, EmptyState, StatusPill, Field } from "../components/ui";
+import { localIso, todayIso, formatDate } from "../lib/dates";
+import { formatApiError } from "../lib/errors";
 
 const WINDOW_OPTIONS = [
   ["", "No preference"],
@@ -12,27 +15,16 @@ const WINDOW_OPTIONS = [
   ["afternoon", "Afternoon (2–6 PM)"],
 ];
 
-function localIso(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
-function errorText(err, fallback) {
-  const data = err.response?.data;
-  if (data?.detail) return data.detail;
-  if (data) return JSON.stringify(data);
-  return fallback;
-}
-
 function PerkRow({ unlocked, title, children }) {
   return (
-    <div style={{ padding: "10px 0", borderBottom: "1px solid var(--color-border)" }}>
-      <p style={{ margin: 0, fontWeight: 600 }}>
-        {unlocked ? "✓ " : "🔒 "}{title}
-      </p>
-      <p style={{ margin: "2px 0 0", fontSize: 13, color: "var(--color-text-muted)" }}>{children}</p>
+    <div className="list-item align-start wrap-mobile">
+      <div className="list-item-main">
+        <p className="list-item-title">{title}</p>
+        <p className="list-item-meta">{children}</p>
+      </div>
+      <span className={`pill ${unlocked ? "pill-success" : "pill-neutral"}`}>
+        {unlocked ? "Included" : "Not in plan"}
+      </span>
     </div>
   );
 }
@@ -52,12 +44,12 @@ function MyServices() {
   const [pickupMessage, setPickupMessage] = useState("");
   const [pickupError, setPickupError] = useState("");
 
+  const today = todayIso();
   const tomorrow = (() => {
     const t = new Date();
     t.setDate(t.getDate() + 1);
     return localIso(t);
   })();
-  const today = localIso(new Date());
 
   const load = async () => {
     try {
@@ -84,7 +76,7 @@ function MyServices() {
       setFeatures(data.features);
       setPrefMessage("Preferences saved.");
     } catch (err) {
-      setPrefError(errorText(err, "Could not save preferences."));
+      setPrefError(formatApiError(err, "Could not save preferences."));
     }
   };
 
@@ -99,7 +91,7 @@ function MyServices() {
       setDescription("");
       load();
     } catch (err) {
-      setPickupError(errorText(err, "Could not schedule the pickup."));
+      setPickupError(formatApiError(err, "Could not schedule the pickup."));
     }
   };
 
@@ -111,17 +103,23 @@ function MyServices() {
       setPickupMessage("Pickup cancelled and your credit was refunded.");
       load();
     } catch (err) {
-      setPickupError(errorText(err, "Could not cancel the pickup."));
+      setPickupError(formatApiError(err, "Could not cancel the pickup."));
     }
   };
 
-  if (loading) return <div className="page-container"><p>Loading...</p></div>;
-  if (loadError) return <div className="page-container"><p style={{ color: "red" }}>{loadError}</p></div>;
+  if (loading) return <div className="page-container"><Spinner /></div>;
+  if (loadError) return <div className="page-container"><Alert kind="error">{loadError}</Alert></div>;
   if (noHousehold) {
     return (
       <div className="page-container">
-        <p>Register your household first to use plan perks.</p>
-        <Link to="/onboarding" className="btn btn-primary">Start Registration →</Link>
+        <div className="card">
+          <EmptyState
+            title="Register your household first"
+            action={<Link to="/onboarding" className="btn btn-primary mt-sm">Start registration</Link>}
+          >
+            You need a registered household to use plan perks.
+          </EmptyState>
+        </div>
       </div>
     );
   }
@@ -131,109 +129,125 @@ function MyServices() {
 
   return (
     <div className="page-container">
-      <span className="eyebrow">MY PLAN</span>
-      <h2>Your plan perks</h2>
+      <PageHeader eyebrow="My plan" title="Your plan perks" />
 
-      {noPerks && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <p style={{ marginTop: 0 }}>You're on the free plan. Paid plans unlock assisted segregation, priority pickup and more.</p>
-          <Link to="/subscriptions" className="btn btn-primary">See plans →</Link>
-        </div>
-      )}
-
-      <div className="card" style={{ marginBottom: 16 }}>
-        <span className="eyebrow">WHAT'S INCLUDED</span>
-        <PerkRow unlocked={features.assisted_segregation} title="Assisted segregation">
-          Collectors sort your waste for you. Compliant checks earn 5 points and failed checks never cost you points.
-        </PerkRow>
-        <PerkRow unlocked={features.priority_pickup} title="Priority pickup">
-          Choose a preferred time window on your ward's pickup day.
-        </PerkRow>
-        <PerkRow unlocked={features.compost_addon} title="Compost pickup">
-          Weekly compost collection for your organic waste.
-        </PerkRow>
-        <PerkRow unlocked={features.bulk_credits_remaining > 0} title="Bulk pickup credits">
-          {features.bulk_credits_remaining > 0
-            ? `${features.bulk_credits_remaining} credit${features.bulk_credits_remaining === 1 ? "" : "s"} left in your current plan.`
-            : "Book one-off large-waste pickups like furniture or renovation debris."}
-        </PerkRow>
-        <PerkRow unlocked={features.monthly_compliance_report} title="Monthly compliance report">
-          {features.monthly_compliance_report ? <Link to="/report">Open your report →</Link> : "A printable summary of your month."}
-        </PerkRow>
-      </div>
-
-      <div className="card" style={{ marginBottom: 16 }}>
-        <span className="eyebrow">PICKUP PREFERENCES</span>
-        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
-          <label>
-            Priority pickup window
-            <select
-              value={prefs.priority_window}
-              disabled={!features.priority_pickup && !prefs.priority_window}
-              onChange={(e) => setPrefs({ ...prefs, priority_window: e.target.value })}
-              style={{ display: "block", marginTop: 4 }}
-            >
-              {WINDOW_OPTIONS.map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
-            {!features.priority_pickup && <small style={{ color: "var(--color-text-muted)" }}>Not in your current plan.</small>}
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={prefs.compost_pickup}
-              disabled={!features.compost_addon && !prefs.compost_pickup}
-              onChange={(e) => setPrefs({ ...prefs, compost_pickup: e.target.checked })}
-            />{" "}
-            Weekly compost pickup
-            {!features.compost_addon && <small style={{ color: "var(--color-text-muted)" }}> — not in your current plan.</small>}
-          </label>
-          <div><button className="btn btn-primary" onClick={handleSavePrefs}>Save preferences</button></div>
-        </div>
-        {prefMessage && <p style={{ color: "var(--color-primary)" }}>{prefMessage}</p>}
-        {prefError && <p style={{ color: "red" }}>{prefError}</p>}
-      </div>
-
-      <div className="card">
-        <span className="eyebrow">BULK PICKUPS</span>
-        {features.bulk_credits_remaining > 0 ? (
-          <form onSubmit={handleRequestPickup} style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
-            <input type="date" value={pickupDate} min={tomorrow} onChange={(e) => setPickupDate(e.target.value)} required />
-            <input
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="What should we collect? (e.g. old sofa, renovation debris)"
-              maxLength={300}
-              required
-            />
-            <button type="submit" className="btn btn-primary">Schedule (uses 1 credit)</button>
-          </form>
-        ) : (
-          <p style={{ color: "var(--color-text-muted)" }}>
-            You have no bulk pickup credits right now. <Link to="/subscriptions">Plans with credits →</Link>
-          </p>
-        )}
-        {pickupMessage && <p style={{ color: "var(--color-primary)" }}>{pickupMessage}</p>}
-        {pickupError && <p style={{ color: "red" }}>{pickupError}</p>}
-
-        {pickups.length > 0 && (
-          <div style={{ marginTop: 16 }}>
-            {pickups.map((p) => (
-              <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "10px 0", borderBottom: "1px solid var(--color-border)" }}>
-                <div>
-                  <p style={{ margin: 0, fontWeight: 600 }}>{new Date(p.pickup_date).toLocaleDateString()} — {p.description}</p>
-                  <span className={p.status === "completed" ? "pill pill-success" : p.status === "cancelled" ? "pill pill-neutral" : "pill pill-warning"}>
-                    {p.status}
-                  </span>
-                </div>
-                {p.status === "scheduled" && p.pickup_date > today && (
-                  <button className="btn btn-outline" onClick={() => handleCancel(p.id)}>Cancel</button>
-                )}
-              </div>
-            ))}
+      <div className="stack-lg">
+        {noPerks && (
+          <div className="card band">
+            <p style={{ marginTop: 0 }}>
+              You're on the free plan. Paid plans unlock assisted segregation, priority pickup and more.
+            </p>
+            <Link to="/subscriptions" className="btn btn-primary">See plans</Link>
           </div>
         )}
+
+        <div className="card">
+          <div className="card-header"><span className="eyebrow">What's included</span></div>
+          <PerkRow unlocked={features.assisted_segregation} title="Assisted segregation">
+            Collectors sort your waste for you. Compliant checks earn 5 points and failed checks never cost you points.
+          </PerkRow>
+          <PerkRow unlocked={features.priority_pickup} title="Priority pickup">
+            Choose a preferred time window on your ward's pickup day.
+          </PerkRow>
+          <PerkRow unlocked={features.compost_addon} title="Compost pickup">
+            Weekly compost collection for your organic waste.
+          </PerkRow>
+          <PerkRow unlocked={features.bulk_credits_remaining > 0} title="Bulk pickup credits">
+            {features.bulk_credits_remaining > 0
+              ? `${features.bulk_credits_remaining} credit${features.bulk_credits_remaining === 1 ? "" : "s"} left in your current plan.`
+              : "Book one-off large-waste pickups like furniture or renovation debris."}
+          </PerkRow>
+          <PerkRow unlocked={features.monthly_compliance_report} title="Monthly compliance report">
+            {features.monthly_compliance_report
+              ? <Link to="/report">Open your report</Link>
+              : "A printable summary of your month."}
+          </PerkRow>
+        </div>
+
+        <div className="card">
+          <div className="card-header"><span className="eyebrow">Pickup preferences</span></div>
+          <div className="stack">
+            <Field
+              label="Priority pickup window"
+              hint={!features.priority_pickup ? "Not in your current plan." : undefined}
+            >
+              <select
+                value={prefs.priority_window}
+                disabled={!features.priority_pickup && !prefs.priority_window}
+                onChange={(e) => setPrefs({ ...prefs, priority_window: e.target.value })}
+              >
+                {WINDOW_OPTIONS.map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+            </Field>
+
+            <div>
+              <label className={`check-row${!features.compost_addon && !prefs.compost_pickup ? " is-disabled" : ""}`}>
+                <input
+                  type="checkbox"
+                  checked={prefs.compost_pickup}
+                  disabled={!features.compost_addon && !prefs.compost_pickup}
+                  onChange={(e) => setPrefs({ ...prefs, compost_pickup: e.target.checked })}
+                />
+                Weekly compost pickup
+              </label>
+              {!features.compost_addon && <span className="field-hint">Not in your current plan.</span>}
+            </div>
+
+            <div className="actions actions-stack">
+              <button className="btn btn-primary" onClick={handleSavePrefs}>Save preferences</button>
+            </div>
+          </div>
+          <Alert kind="success">{prefMessage}</Alert>
+          <Alert kind="error">{prefError}</Alert>
+        </div>
+
+        <div className="card">
+          <div className="card-header"><span className="eyebrow">Bulk pickups</span></div>
+          {features.bulk_credits_remaining > 0 ? (
+            <form onSubmit={handleRequestPickup} className="stack">
+              <Field label="Pickup date">
+                <input type="date" value={pickupDate} min={tomorrow} onChange={(e) => setPickupDate(e.target.value)} required />
+              </Field>
+              <Field label="What should we collect?">
+                <input
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="e.g. old sofa, renovation debris"
+                  maxLength={300}
+                  required
+                />
+              </Field>
+              <div className="actions actions-stack">
+                <button type="submit" className="btn btn-primary">Schedule (uses 1 credit)</button>
+              </div>
+            </form>
+          ) : (
+            <p className="muted" style={{ margin: 0 }}>
+              You have no bulk pickup credits right now. <Link to="/subscriptions">Plans with credits</Link>
+            </p>
+          )}
+          <Alert kind="success">{pickupMessage}</Alert>
+          <Alert kind="error">{pickupError}</Alert>
+
+          {pickups.length > 0 && (
+            <div className="mt">
+              {pickups.map((p) => (
+                <div key={p.id} className="list-item wrap-mobile">
+                  <div className="list-item-main">
+                    <p className="list-item-title">{formatDate(p.pickup_date)}</p>
+                    <p className="list-item-meta">{p.description}</p>
+                    <div className="mt-sm"><StatusPill status={p.status} /></div>
+                  </div>
+                  {p.status === "scheduled" && p.pickup_date > today && (
+                    <button className="btn btn-outline btn-sm" onClick={() => handleCancel(p.id)}>Cancel</button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

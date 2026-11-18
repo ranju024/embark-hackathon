@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getSubscriptionPlans, getMySubscription, subscribeToPlan, redirectToEsewa } from "../api/subscriptions";
 import { isLoggedIn } from "../auth";
+import { PageHeader, Alert, Spinner } from "../components/ui";
+import { formatApiError } from "../lib/errors";
 
 const FEATURE_LABELS = [
   ["assisted_segregation", "Collectors segregate your waste for you"],
@@ -13,7 +15,7 @@ const FEATURE_LABELS = [
 
 function PlanFeatureList({ plan }) {
   return (
-    <ul style={{ paddingLeft: 18, margin: "12px 0" }}>
+    <ul className="tick-list">
       {FEATURE_LABELS.map(([key, label]) => {
         const value = plan[key];
         if (!value) return null;
@@ -65,15 +67,15 @@ function SubscriptionPlans() {
     try {
       const { esewa_form_url, form_fields } = await subscribeToPlan(planId);
       redirectToEsewa(esewa_form_url, form_fields);
-      // browser navigates away here — no further state update needed
+      // browser navigates away here, no further state update needed
     } catch (err) {
-      setError(err.response?.data?.detail || "Could not start subscription.");
+      setError(formatApiError(err, "Could not start subscription."));
       setSubscribingId(null);
     }
   };
 
   if (loading) {
-    return <div className="page-container"><p>Loading plans...</p></div>;
+    return <div className="page-container"><Spinner label="Loading plans..." /></div>;
   }
 
   const active = mySubscription?.status === "active" ? mySubscription : null;
@@ -88,54 +90,55 @@ function SubscriptionPlans() {
 
   return (
     <div className="page-container">
-      <span className="eyebrow">SUBSCRIPTIONS</span>
-      <h2>Go beyond free collection</h2>
-      <p style={{ color: "var(--color-text-muted)" }}>
-        Basic waste collection from LMC is always free. These plans add extra convenience on top.
-      </p>
+      <PageHeader
+        eyebrow="Subscriptions"
+        title="Go beyond free collection"
+        subtitle="Basic waste collection from LMC is always free. These plans add extra convenience on top."
+      />
 
       {active && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <span className="eyebrow">YOUR PLAN</span>
-          <p style={{ margin: 0, fontWeight: 600 }}>{active.plan.name}</p>
-          <p style={{ margin: 0, color: "var(--color-text-muted)" }}>
-            Active until {new Date(active.period_end).toLocaleDateString()} · {active.days_remaining} day
+        <div className="card mb">
+          <div className="card-header">
+            <span className="eyebrow">Your plan</span>
+            <span className="pill pill-success">Active</span>
+          </div>
+          <p className="list-item-title">{active.plan.name}</p>
+          <p className="list-item-meta">
+            Until {new Date(active.period_end).toLocaleDateString()} · {active.days_remaining} day
             {active.days_remaining === 1 ? "" : "s"} left
           </p>
           {active.can_renew && (
-            <p style={{ margin: "8px 0 0", color: "var(--color-accent, #C1652F)" }}>
-              Your plan ends soon — renew now and the new period starts when this one ends.
-            </p>
+            <Alert kind="warning">
+              Your plan ends soon. Renew now and the new period starts when this one ends.
+            </Alert>
           )}
         </div>
       )}
 
       {mySubscription?.status === "expired" && (
-        <p style={{ color: "var(--color-accent, #C1652F)" }}>
+        <Alert kind="warning">
           Your {mySubscription.plan.name} plan has expired. Pick a plan below to continue.
-        </p>
+        </Alert>
       )}
 
       {mySubscription?.status === "payment_failed" && (
-        <p style={{ color: "var(--color-accent, #C1652F)" }}>
+        <Alert kind="warning">
           Your last payment attempt failed. Pick a plan below to try again.
-        </p>
+        </Alert>
       )}
 
-      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+      <Alert kind="error">{error}</Alert>
+
+      <div className="grid-auto">
         {plans.map((plan) => {
           const isCurrent = active && active.plan.id === plan.id;
           return (
-            <div
-              key={plan.id}
-              className="card"
-              style={{ flex: "1 1 280px", border: isCurrent ? "2px solid #1B4332" : undefined }}
-            >
-              <span className="eyebrow">{plan.name.toUpperCase()}</span>
-              <p style={{ fontSize: "1.4rem", fontWeight: 700, margin: "4px 0" }}>
-                Rs. {plan.monthly_price_npr}<span style={{ fontSize: "0.9rem", fontWeight: 400 }}>/month</span>
+            <div key={plan.id} className={`card plan-card${isCurrent ? " current" : ""}`}>
+              <span className="eyebrow">{plan.name}</span>
+              <p className="plan-price">
+                Rs. {plan.monthly_price_npr}<small> / month</small>
               </p>
-              <p style={{ color: "var(--color-text-muted)" }}>{plan.description}</p>
+              <p className="muted">{plan.description}</p>
               <PlanFeatureList plan={plan} />
               <button
                 className="btn btn-primary"
@@ -148,8 +151,6 @@ function SubscriptionPlans() {
           );
         })}
       </div>
-
-      {error && <p style={{ color: "red" }}>{error}</p>}
     </div>
   );
 }

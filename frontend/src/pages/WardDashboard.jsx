@@ -9,14 +9,16 @@ import {
   updateRouteLocation, getMyRoutes, getStaffUsers,
 } from "../api/collectorRoutes";
 import LiveTruckMap from "../components/LiveTruckMap";
+import { PageHeader, Alert, Spinner, EmptyState, StatusPill, Field, Stat, TableScroll } from "../components/ui";
+import { todayIso } from "../lib/dates";
+import { formatApiError } from "../lib/errors";
 
-const WASTE_COLORS = { organic: "#1B4332", dry: "#C1652F", both: "#9CA3AF" };
+// recharts needs real colour values, so these mirror the CSS palette
+const COLOR_PRIMARY = "#14452f";
+const COLOR_ACCENT = "#b8521f";
+const WASTE_COLORS = { organic: COLOR_PRIMARY, dry: COLOR_ACCENT, both: "#9CA3AF" };
 const LOCATION_UPDATE_INTERVAL_MS = 20000;
 const ACTIVE_STATUSES = ["assigned", "in_progress"];
-
-function todayIso() {
-  return new Date().toISOString().split("T")[0];
-}
 
 function WardDashboard() {
   const [stats, setStats] = useState([]);
@@ -37,7 +39,7 @@ function WardDashboard() {
   useEffect(() => {
     getWardComplianceStats()
       .then(setStats)
-      .catch(() => setStatsError("Could not load ward stats — staff access required."))
+      .catch(() => setStatsError("Could not load ward stats. Staff access is required."))
       .finally(() => setStatsLoading(false));
 
     loadRoutes();
@@ -81,7 +83,7 @@ function WardDashboard() {
       loadRoutes();
       loadMyRoutes();
     } catch (err) {
-      setRouteError(err.response?.data ? JSON.stringify(err.response.data) : "Could not assign route.");
+      setRouteError(formatApiError(err, "Could not assign route."));
     }
   };
 
@@ -101,7 +103,7 @@ function WardDashboard() {
     try {
       await updateRouteStatus(routeId, newStatus);
       if (!ACTIVE_STATUSES.includes(newStatus)) {
-        stopBroadcasting(routeId); // leaving completed/missed intervals running was the exact bug we just fixed
+        stopBroadcasting(routeId); // don't leave intervals running on completed/missed routes
       }
       loadRoutes();
       loadMyRoutes();
@@ -123,14 +125,13 @@ function WardDashboard() {
           );
           setMyRoutes((prev) => prev.map((r) => (r.id === routeId ? updated : r)));
         } catch (e) {
-          // Route is no longer active server-side (e.g. marked completed
-          // from another tab/device) — stop this interval instead of
-          // repeatedly failing.
+          // Route is no longer active server-side (e.g. completed from another
+          // tab/device): stop this interval instead of failing repeatedly.
           stopBroadcasting(routeId);
           setBroadcastError(e.response?.data?.detail || "Could not update location.");
         }
       },
-      () => setBroadcastError("Location permission denied — cannot broadcast without it."),
+      () => setBroadcastError("Location permission denied. Cannot broadcast without it."),
       { enableHighAccuracy: true }
     );
   };
@@ -142,7 +143,13 @@ function WardDashboard() {
     intervalsRef.current[routeId] = setInterval(() => sendLocationUpdate(routeId), LOCATION_UPDATE_INTERVAL_MS);
   };
 
-  if (statsLoading) return <div className="page-container"><p>Loading dashboard...</p></div>;
+  if (statsLoading) {
+    return (
+      <div className="page-container">
+        <Spinner label="Loading dashboard..." />
+      </div>
+    );
+  }
 
   const complianceChartData = stats.map((s) => ({
     ward: `Ward ${s.ward_number}`,
@@ -160,21 +167,34 @@ function WardDashboard() {
     { name: "Both Types", value: wasteTypeTotals.both, key: "both" },
   ].filter((d) => d.value > 0);
 
+  const totalChecks = stats.reduce((sum, s) => sum + s.total, 0);
+  const totalWeight = stats.reduce((sum, s) => sum + Number(s.total_weight_kg || 0), 0);
+
   return (
     <div className="page-container">
-      <span className="eyebrow">WARD ADMIN</span>
-      <h2>Compliance Dashboard</h2>
+      <PageHeader eyebrow="Ward admin" title="Compliance dashboard" />
 
-      {statsError && <p style={{ color: "red" }}>{statsError}</p>}
+      <Alert kind="error">{statsError}</Alert>
 
       {!statsError && stats.length === 0 && (
-        <p>No reviewed compliance checks yet — charts will populate as reviews come in.</p>
+        <div className="card">
+          <EmptyState title="No reviewed checks yet">
+            Charts will fill in as compliance checks get reviewed.
+          </EmptyState>
+        </div>
       )}
 
       {!statsError && stats.length > 0 && (
-        <>
-          <div className="card" style={{ marginBottom: 20 }}>
-            <span className="eyebrow">COMPLIANCE BY WARD</span>
+        <div className="stack-lg">
+          <div className="stat-grid">
+            <Stat value={stats.length} label="Wards reporting" />
+            <Stat value={totalChecks} label="Reviewed checks" />
+            <Stat value={totalWeight.toFixed(1)} label="Total kg collected" />
+            <Stat value={routes.length} label="Routes today" />
+          </div>
+
+          <div className="card">
+            <div className="card-header"><span className="eyebrow">Compliance by ward</span></div>
             <ResponsiveContainer width="100%" height={320}>
               <BarChart data={complianceChartData}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -182,14 +202,14 @@ function WardDashboard() {
                 <YAxis allowDecimals={false} />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="Compliant" fill="#1B4332" />
-                <Bar dataKey="Non-Compliant" fill="#C1652F" />
+                <Bar dataKey="Compliant" fill={COLOR_PRIMARY} />
+                <Bar dataKey="Non-Compliant" fill={COLOR_ACCENT} />
               </BarChart>
             </ResponsiveContainer>
           </div>
 
-          <div className="card" style={{ marginBottom: 20 }}>
-            <span className="eyebrow">WASTE TYPE BREAKDOWN (ALL WARDS)</span>
+          <div className="card">
+            <div className="card-header"><span className="eyebrow">Waste type breakdown (all wards)</span></div>
             <ResponsiveContainer width="100%" height={280}>
               <PieChart>
                 <Pie data={wasteTypePieData} dataKey="value" nameKey="name" outerRadius={100} label>
@@ -203,49 +223,56 @@ function WardDashboard() {
             </ResponsiveContainer>
           </div>
 
-          <div className="card" style={{ marginBottom: 20 }}>
-            <span className="eyebrow">WARD DETAIL TABLE</span>
-            <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 12 }}>
-              <thead>
-                <tr style={{ textAlign: "left", borderBottom: "2px solid var(--color-border)" }}>
-                  <th style={{ padding: "8px 4px" }}>Ward</th>
-                  <th style={{ padding: "8px 4px" }}>Checks</th>
-                  <th style={{ padding: "8px 4px" }}>Compliance %</th>
-                  <th style={{ padding: "8px 4px" }}>Total Weight (kg)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stats.map((s) => (
-                  <tr key={s.ward_number} style={{ borderBottom: "1px solid var(--color-border)" }}>
-                    <td style={{ padding: "8px 4px" }}>Ward {s.ward_number}</td>
-                    <td style={{ padding: "8px 4px" }}>{s.total}</td>
-                    <td style={{ padding: "8px 4px" }}>{s.compliance_rate !== null ? `${s.compliance_rate}%` : "—"}</td>
-                    <td style={{ padding: "8px 4px" }}>{s.total_weight_kg.toFixed(2)}</td>
+          <div className="card">
+            <div className="card-header"><span className="eyebrow">Ward detail</span></div>
+            <TableScroll>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Ward</th>
+                    <th>Checks</th>
+                    <th>Compliance</th>
+                    <th>Weight (kg)</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {stats.map((s) => (
+                    <tr key={s.ward_number}>
+                      <td>Ward {s.ward_number}</td>
+                      <td>{s.total}</td>
+                      <td>{s.compliance_rate !== null ? `${s.compliance_rate}%` : "—"}</td>
+                      <td>{Number(s.total_weight_kg || 0).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TableScroll>
           </div>
-        </>
+        </div>
       )}
 
       {myRoutes.length > 0 && (
-        <div className="card" style={{ marginBottom: 20 }}>
-          <span className="eyebrow">MY ASSIGNED ROUTES TODAY</span>
-          {broadcastError && <p style={{ color: "red" }}>{broadcastError}</p>}
+        <div className="card mt">
+          <div className="card-header"><span className="eyebrow">My assigned routes today</span></div>
+          <Alert kind="error">{broadcastError}</Alert>
           {myRoutes.map((r) => (
-            <div key={r.id} style={{ padding: "12px 0", borderBottom: "1px solid var(--color-border)" }}>
-              <p style={{ fontWeight: 600, margin: "0 0 6px" }}>Ward {r.ward_number} — status: {r.status}</p>
+            <div key={r.id} className="route-item">
+              <div className="route-item-head">
+                <p className="list-item-title">Ward {r.ward_number}</p>
+                <StatusPill status={r.status} />
+              </div>
               {ACTIVE_STATUSES.includes(r.status) && (
-                <button
-                  className={broadcastingIds[r.id] ? "btn btn-accent" : "btn btn-primary"}
-                  onClick={() => (broadcastingIds[r.id] ? stopBroadcasting(r.id) : startBroadcasting(r.id))}
-                >
-                  {broadcastingIds[r.id] ? "Stop Broadcasting Location" : "Start Broadcasting Location"}
-                </button>
+                <div className="actions actions-stack mt-sm">
+                  <button
+                    className={broadcastingIds[r.id] ? "btn btn-accent" : "btn btn-primary"}
+                    onClick={() => (broadcastingIds[r.id] ? stopBroadcasting(r.id) : startBroadcasting(r.id))}
+                  >
+                    {broadcastingIds[r.id] ? "Stop broadcasting location" : "Start broadcasting location"}
+                  </button>
+                </div>
               )}
               {r.current_lat && r.current_lng && (
-                <div style={{ marginTop: 12 }}>
+                <div className="route-map">
                   <LiveTruckMap lat={r.current_lat} lng={r.current_lng} label={`Ward ${r.ward_number}`} />
                 </div>
               )}
@@ -254,57 +281,64 @@ function WardDashboard() {
         </div>
       )}
 
-      <div className="card" style={{ marginBottom: 20 }}>
-        <span className="eyebrow">ASSIGN TODAY'S ROUTE</span>
-        <form onSubmit={handleAssignRoute} style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-          <input
-            value={wardInput}
-            onChange={(e) => setWardInput(e.target.value)}
-            placeholder="Ward number"
-            type="number"
-            min="1"
-            max="29"
-            style={{ flex: "1 1 120px" }}
-          />
-          <select value={collectorInput} onChange={(e) => setCollectorInput(e.target.value)} style={{ flex: "1 1 160px" }}>
-            <option value="">Select collector</option>
-            {staffList.map((s) => (
-              <option key={s.id} value={s.id}>{s.username}</option>
-            ))}
-          </select>
+      <div className="card mt">
+        <div className="card-header"><span className="eyebrow">Assign today's route</span></div>
+        <form onSubmit={handleAssignRoute} className="assign-form">
+          <Field label="Ward number">
+            <input
+              value={wardInput}
+              onChange={(e) => setWardInput(e.target.value)}
+              placeholder="1 to 29"
+              type="number"
+              min="1"
+              max="29"
+            />
+          </Field>
+          <Field label="Collector">
+            <select value={collectorInput} onChange={(e) => setCollectorInput(e.target.value)}>
+              <option value="">Select collector</option>
+              {staffList.map((s) => (
+                <option key={s.id} value={s.id}>{s.username}</option>
+              ))}
+            </select>
+          </Field>
           <button type="submit" className="btn btn-primary">Assign</button>
         </form>
-        {routeError && <p style={{ color: "red" }}>{routeError}</p>}
+        <Alert kind="error">{routeError}</Alert>
       </div>
 
-      <div className="card">
-        <span className="eyebrow">TODAY'S ROUTES</span>
-        {routes.length === 0 && <p>No routes assigned today.</p>}
+      <div className="card mt">
+        <div className="card-header"><span className="eyebrow">Today's routes</span></div>
+        {routes.length === 0 && (
+          <EmptyState title="No routes assigned today">Assign a collector to a ward above.</EmptyState>
+        )}
         {routes.map((r) => (
-          <div key={r.id} style={{ padding: "12px 0", borderBottom: "1px solid var(--color-border)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-              <div>
-                <p style={{ margin: 0, fontWeight: 600 }}>Ward {r.ward_number} — {r.collector_username}</p>
-                <p style={{ margin: 0, fontSize: 13, color: "var(--color-text-muted)" }}>
-                  Status: {r.status}
-                  {r.last_location_update && ` · Last update: ${new Date(r.last_location_update).toLocaleTimeString()}`}
+          <div key={r.id} className="route-item">
+            <div className="route-item-head">
+              <div className="list-item-main">
+                <p className="list-item-title">Ward {r.ward_number} · {r.collector_username}</p>
+                <p className="list-item-meta">
+                  {r.last_location_update
+                    ? `Last update ${new Date(r.last_location_update).toLocaleTimeString()}`
+                    : "No location yet"}
                 </p>
               </div>
-              <div style={{ display: "flex", gap: 8 }}>
+              <StatusPill status={r.status} />
+            </div>
+            {ACTIVE_STATUSES.includes(r.status) && (
+              <div className="actions actions-stack mt-sm">
                 {r.status === "assigned" && (
-                  <button className="btn btn-outline" onClick={() => handleStatusChange(r.id, "in_progress")}>Start</button>
+                  <button className="btn btn-outline btn-sm" onClick={() => handleStatusChange(r.id, "in_progress")}>Start</button>
                 )}
                 {r.status === "in_progress" && (
-                  <button className="btn btn-primary" onClick={() => handleStatusChange(r.id, "completed")}>Complete</button>
+                  <button className="btn btn-primary btn-sm" onClick={() => handleStatusChange(r.id, "completed")}>Complete</button>
                 )}
-                {ACTIVE_STATUSES.includes(r.status) && (
-                  <button className="btn btn-accent" onClick={() => handleStatusChange(r.id, "missed")}>Mark Missed</button>
-                )}
+                <button className="btn btn-accent btn-sm" onClick={() => handleStatusChange(r.id, "missed")}>Mark missed</button>
               </div>
-            </div>
+            )}
             {r.current_lat && r.current_lng && (
-              <div style={{ marginTop: 8 }}>
-                <LiveTruckMap lat={r.current_lat} lng={r.current_lng} label={`${r.collector_username} — Ward ${r.ward_number}`} />
+              <div className="route-map">
+                <LiveTruckMap lat={r.current_lat} lng={r.current_lng} label={`${r.collector_username} · Ward ${r.ward_number}`} />
               </div>
             )}
           </div>

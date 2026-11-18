@@ -1,17 +1,19 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getMonthlyReport } from "../api/premium";
+import { PageHeader, Alert, Spinner, EmptyState, Stat, StatusPill, TableScroll } from "../components/ui";
+import { formatApiError } from "../lib/errors";
 
 function currentMonth() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function Stat({ value, label }) {
+function Row({ label, value }) {
   return (
-    <div className="card" style={{ flex: "1 1 140px", textAlign: "center" }}>
-      <p style={{ margin: 0, fontSize: "1.5rem", fontWeight: 700 }}>{value}</p>
-      <p style={{ margin: 0, fontSize: 13, color: "var(--color-text-muted)" }}>{label}</p>
+    <div className="list-item">
+      <span>{label}</span>
+      <strong>{value}</strong>
     </div>
   );
 }
@@ -31,7 +33,7 @@ function MonthlyReport() {
       .catch((err) => {
         setReport(null);
         if (err.response?.status === 403) setLocked(true);
-        else setError(err.response?.data?.detail || "Could not load the report.");
+        else setError(formatApiError(err, "Could not load the report."));
       })
       .finally(() => setLoading(false));
   }, [month]);
@@ -39,91 +41,108 @@ function MonthlyReport() {
   if (locked) {
     return (
       <div className="page-container">
-        <h2>Monthly compliance report</h2>
-        <p>Reports aren't included in your current plan.</p>
-        <Link to="/subscriptions" className="btn btn-primary">See plans →</Link>
+        <PageHeader title="Monthly compliance report" />
+        <div className="card">
+          <EmptyState
+            title="Reports aren't in your plan"
+            action={<Link to="/subscriptions" className="btn btn-primary mt-sm">See plans</Link>}
+          >
+            Upgrade to get a printable summary of your month.
+          </EmptyState>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="page-container">
-      <span className="eyebrow">MONTHLY REPORT</span>
-      <h2>Compliance report</h2>
+      <PageHeader eyebrow="Monthly report" title="Compliance report" />
 
-      <div className="no-print" style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
-        <input type="month" value={month} max={currentMonth()} onChange={(e) => e.target.value && setMonth(e.target.value)} />
-        <button className="btn btn-outline" onClick={() => window.print()} disabled={!report}>Print / Save as PDF</button>
+      <div className="scan-row no-print mb">
+        <input
+          type="month"
+          value={month}
+          max={currentMonth()}
+          aria-label="Report month"
+          onChange={(e) => e.target.value && setMonth(e.target.value)}
+        />
+        <button className="btn btn-outline" onClick={() => window.print()} disabled={!report}>
+          Print / Save as PDF
+        </button>
       </div>
 
-      {loading && <p>Loading report...</p>}
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      <Alert kind="error">{error}</Alert>
+      {loading && <Spinner label="Loading report..." />}
 
       {report && !loading && (
-        <>
-          <div className="card" style={{ marginBottom: 16 }}>
-            <p style={{ margin: 0, fontWeight: 600 }}>{report.month_label}</p>
+        <div className="stack-lg">
+          <div className="card">
+            <p className="list-item-title">{report.month_label}</p>
             <p style={{ margin: 0 }}>
               {report.household.owner_name} · H.No {report.household.house_number} · Ward {report.household.ward_number}
             </p>
-            <p style={{ margin: 0, fontSize: 13, color: "var(--color-text-muted)" }}>
+            <p className="list-item-meta">
               Plan: {report.plan || "—"} · Generated {report.generated_on}
             </p>
           </div>
 
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+          <div className="stat-grid">
             <Stat value={report.summary.total_checks} label="Waste checks" />
-            <Stat value={report.summary.compliance_rate !== null ? `${report.summary.compliance_rate}%` : "—"} label="Compliance rate" />
+            <Stat
+              value={report.summary.compliance_rate !== null ? `${report.summary.compliance_rate}%` : "—"}
+              label="Compliance rate"
+            />
             <Stat value={`${report.summary.total_kg.toFixed(2)} kg`} label="Waste collected" />
             <Stat value={report.points.net} label="Net GreenPoints" />
           </div>
 
-          <div className="card" style={{ marginBottom: 16 }}>
-            <span className="eyebrow">BREAKDOWN</span>
-            <p style={{ margin: "8px 0 0" }}>
-              Compliant: {report.summary.compliant} · Non-compliant: {report.summary.non_compliant} · Awaiting review: {report.summary.pending_review}
-            </p>
-            <p style={{ margin: "4px 0 0" }}>
-              Organic: {report.summary.organic_kg.toFixed(2)} kg · Dry: {report.summary.dry_kg.toFixed(2)} kg · Mixed: {report.summary.both_kg.toFixed(2)} kg
-            </p>
-            <p style={{ margin: "4px 0 0" }}>
-              Points earned: +{report.points.earned} · Points lost: -{report.points.lost} · Spent on rewards: -{report.points.redeemed}
-            </p>
-            <p style={{ margin: "4px 0 0" }}>Bulk pickups completed: {report.summary.bulk_pickups_completed}</p>
-            <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--color-text-muted)" }}>
-              Points count in the month an officer reviewed the check.
-            </p>
+          <div className="card">
+            <div className="card-header"><span className="eyebrow">Breakdown</span></div>
+            <Row label="Compliant" value={report.summary.compliant} />
+            <Row label="Non-compliant" value={report.summary.non_compliant} />
+            <Row label="Awaiting review" value={report.summary.pending_review} />
+            <Row label="Organic" value={`${report.summary.organic_kg.toFixed(2)} kg`} />
+            <Row label="Dry" value={`${report.summary.dry_kg.toFixed(2)} kg`} />
+            <Row label="Mixed" value={`${report.summary.both_kg.toFixed(2)} kg`} />
+            <Row label="Points earned" value={`+${report.points.earned}`} />
+            <Row label="Points lost" value={`-${report.points.lost}`} />
+            <Row label="Spent on rewards" value={`-${report.points.redeemed}`} />
+            <Row label="Bulk pickups completed" value={report.summary.bulk_pickups_completed} />
+            <p className="note">Points count in the month an officer reviewed the check.</p>
           </div>
 
           <div className="card">
-            <span className="eyebrow">CHECKS THIS MONTH</span>
-            {report.checks.length === 0 && <p>No waste checks were recorded this month.</p>}
-            {report.checks.length > 0 && (
-              <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 12 }}>
-                <thead>
-                  <tr style={{ textAlign: "left", borderBottom: "2px solid var(--color-border)" }}>
-                    <th style={{ padding: "8px 4px" }}>Date</th>
-                    <th style={{ padding: "8px 4px" }}>Type</th>
-                    <th style={{ padding: "8px 4px" }}>Weight</th>
-                    <th style={{ padding: "8px 4px" }}>Result</th>
-                    <th style={{ padding: "8px 4px" }}>Notes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {report.checks.map((c, i) => (
-                    <tr key={i} style={{ borderBottom: "1px solid var(--color-border)" }}>
-                      <td style={{ padding: "8px 4px" }}>{new Date(c.date).toLocaleDateString()}</td>
-                      <td style={{ padding: "8px 4px" }}>{c.waste_type}</td>
-                      <td style={{ padding: "8px 4px" }}>{c.weight_kg.toFixed(2)} kg</td>
-                      <td style={{ padding: "8px 4px" }}>{c.status.replace("_", " ")}</td>
-                      <td style={{ padding: "8px 4px" }}>{c.notes}</td>
+            <div className="card-header"><span className="eyebrow">Checks this month</span></div>
+            {report.checks.length === 0 ? (
+              <EmptyState title="No checks this month">No waste checks were recorded for this month.</EmptyState>
+            ) : (
+              <TableScroll>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Type</th>
+                      <th>Weight</th>
+                      <th>Result</th>
+                      <th>Notes</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {report.checks.map((c, i) => (
+                      <tr key={i}>
+                        <td>{new Date(c.date).toLocaleDateString()}</td>
+                        <td className="cap">{c.waste_type}</td>
+                        <td>{c.weight_kg.toFixed(2)} kg</td>
+                        <td><StatusPill status={c.status} /></td>
+                        <td>{c.notes}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </TableScroll>
             )}
           </div>
-        </>
+        </div>
       )}
     </div>
   );

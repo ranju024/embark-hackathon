@@ -725,3 +725,31 @@ h3 { font-weight: 700; letter-spacing: -0.01em; }
 .viewer-prev { left: 12px; }
 .viewer-next { right: 12px; }
 .viewer-open { position: absolute; bottom: 14px; left: 0; right: 0; text-align: center; font-size: 0.9rem; color: #fff; }
+
+/* ---- Ward dashboard ---- */
+.data-table th, .data-table td { padding: 10px 8px; border-bottom: 1px solid var(--color-border); }
+.data-table tbody tr:last-child td { border-bottom: 0; }
+
+.assign-form { display: grid; gap: 12px; grid-template-columns: 1fr; align-items: end; }
+@media (min-width: 640px) { .assign-form { grid-template-columns: 1fr 2fr auto; } }
+
+.route-item { padding: 14px 0; border-bottom: 1px solid var(--color-border); }
+.route-item:first-of-type { padding-top: 0; }
+.route-item:last-child { border-bottom: 0; padding-bottom: 0; }
+.route-item-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.route-map { margin-top: 12px; }
+
+/* ---- Checkbox rows ---- */
+.check-row { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+.check-row.is-disabled { opacity: 0.6; }
+
+/* ---- Plans, payment result, report ---- */
+.plan-card { display: flex; flex-direction: column; }
+.plan-card.current { border: 2px solid var(--color-primary); }
+.plan-card .tick-list { margin: 8px 0 20px; }
+.plan-card .btn { margin-top: auto; }
+.plan-price { margin: 4px 0 8px; font-family: var(--font-display); font-size: 1.6rem; font-weight: 800; color: var(--color-primary); }
+.plan-price small { font-size: 0.9rem; font-weight: 500; color: var(--color-text-muted); }
+
+.narrow { max-width: 480px; margin: 24px auto; }
+.cap { text-transform: capitalize; }
