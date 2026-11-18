@@ -55,8 +55,7 @@ def my_redemptions(request):
     if household is None:
         return Response([])
     redemptions = household.redemptions.order_by("-redeemed_at")
-    return Response(RedemptionSerializer(redemptions, many=True).data)
-
+    return Response(RedemptionSerializer(redemptions, many=True, context={"request": request}).data)
 
 @api_view(["POST"])
 @permission_classes([permissions.IsAuthenticated])
@@ -94,4 +93,7 @@ def redeem_offer(request):
             points=-offer.points_cost,
         )
 
-    return Response(RedemptionSerializer(redemption).data, status=status.HTTP_201_CREATED)
+    return Response(
+        RedemptionSerializer(redemption, context={"request": request}).data,
+        status=status.HTTP_201_CREATED,
+    )

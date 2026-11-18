@@ -16,13 +16,17 @@ def generate_voucher_code():
 class PartnerOffer(models.Model):
     """
     Admin-editable catalog of what GreenPoints can be redeemed for.
-    Static/example partner data for now — no real API integration,
-    just a name + description + point cost.
+    Upload a logo in the admin; without one the app shows a tile in brand_color.
     """
     partner_name = models.CharField(max_length=100)
     title = models.CharField(max_length=150)
     description = models.TextField(blank=True)
     points_cost = models.PositiveIntegerField()
+    image = models.ImageField(upload_to="partner_logos/", blank=True)
+    brand_color = models.CharField(
+        max_length=7, default="#14452F",
+        help_text="Hex colour for the logo tile when no image is uploaded, e.g. #E4002B",
+    )
     is_active = models.BooleanField(default=True)
 
     created_at = models.DateTimeField(auto_now_add=True)

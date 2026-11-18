@@ -1,7 +1,5 @@
 from rest_framework import serializers
-from django.db.models import Sum
 from .models import GreenPointsEntry, PartnerOffer, Redemption
-from households.models import Household
 
 
 class GreenPointsEntrySerializer(serializers.ModelSerializer):
@@ -16,7 +14,7 @@ class GreenPointsEntrySerializer(serializers.ModelSerializer):
 class PartnerOfferSerializer(serializers.ModelSerializer):
     class Meta:
         model = PartnerOffer
-        fields = ["id", "partner_name", "title", "description", "points_cost"]
+        fields = ["id", "partner_name", "title", "description", "points_cost", "image", "brand_color"]
 
 
 class RedemptionSerializer(serializers.ModelSerializer):
