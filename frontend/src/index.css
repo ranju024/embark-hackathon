@@ -753,3 +753,12 @@ h3 { font-weight: 700; letter-spacing: -0.01em; }
 
 .narrow { max-width: 480px; margin: 24px auto; }
 .cap { text-transform: capitalize; }
+
+/* ---- QR placeholder (loading / failed) ---- */
+.qr-placeholder {
+  display: grid; place-items: center;
+  background: var(--color-surface-alt); color: var(--color-text-muted);
+  font-size: 0.75rem; line-height: 1.2; text-align: center;
+  border: 1px solid var(--color-border); border-radius: var(--radius-sm);
+}
+.qr-small.qr-placeholder .spinner { width: 20px; height: 20px; border-width: 2px; }

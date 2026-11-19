@@ -1,7 +1,5 @@
 import api from "../api";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
-
 export const getMyHousehold = async () => {
   try {
     const res = await api.get("/households/mine/");
@@ -28,6 +26,29 @@ export const createHousehold = async (ward_number, house_number, owner_name, pho
   return res.data;
 };
 
-export const getHouseholdQrImageUrl = (householdId) => {
-  return `${API_BASE}/households/${householdId}/qr_image/`;
+// QR images need the JWT, which a plain <img src> can't send.
+// We fetch the PNG through the axios instance and hand back a blob URL.
+// The cache stores promises, so concurrent requests for one id share one fetch.
+const qrCache = new Map(); // householdId -> Promise<blobUrl>
+
+export const getHouseholdQrBlobUrl = (householdId) => {
+  if (!qrCache.has(householdId)) {
+    const promise = api
+      .get(`/households/${householdId}/qr_image/`, { responseType: "blob" })
+      .then((res) => URL.createObjectURL(res.data))
+      .catch((err) => {
+        qrCache.delete(householdId); // don't cache failures
+        throw err;
+      });
+    qrCache.set(householdId, promise);
+  }
+  return qrCache.get(householdId);
 };
+
+export const clearQrCache = () => {
+  qrCache.forEach((promise) => promise.then((url) => URL.revokeObjectURL(url)).catch(() => {}));
+  qrCache.clear();
+};
+
+// api.js fires this when a refresh fails or the user logs out.
+window.addEventListener("auth:logout", clearQrCache);

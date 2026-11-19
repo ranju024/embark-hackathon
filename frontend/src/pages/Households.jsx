@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { getMyHousehold, getHouseholds, getHouseholdQrImageUrl } from "../api/households";
+import { getMyHousehold, getHouseholds } from "../api/households";
+import QrImage from "../components/QrImage";
 import { getMyPoints } from "../api/rewards";
 import { getMyRoutes } from "../api/collectorRoutes";
 import LiveTruckMap from "../components/LiveTruckMap";
@@ -180,7 +181,7 @@ function Households({ isStaff }) {
           <div className="grid-auto">
             {filteredHouseholds.map((h) => (
               <div key={h.id} className="card media">
-                <img className="qr-small" src={getHouseholdQrImageUrl(h.id)} alt="QR code" />
+                <QrImage className="qr-small" householdId={h.id} alt={`QR code for Ward ${h.ward_number}, House ${h.house_number}`} />
                 <div className="media-body">
                   <p className="list-item-title">Ward {h.ward_number} — House {h.house_number}</p>
                   <p className="list-item-meta">{h.owner_name} · {h.owner_username}</p>
@@ -300,7 +301,7 @@ function Households({ isStaff }) {
             <div className="card-header">
               <span className="eyebrow">Your household QR</span>
             </div>
-            <img className="qr-img" src={getHouseholdQrImageUrl(myHousehold.id)} alt="Your household QR code" />
+            <QrImage className="qr-img" householdId={myHousehold.id} alt="Your household QR code" />
             <p className="muted mt-sm" style={{ marginBottom: 0 }}>Show this to your collector at pickup.</p>
           </div>
 
