@@ -8,17 +8,34 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+
 def env_list(name, default=""):
     return [v.strip() for v in os.getenv(name, default).split(",") if v.strip()]
 
-DEBUG = os.getenv("DEBUG", "False").strip().lower() in ("1", "true", "yes", "on")
+
+def env_bool(name, default=False):
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in ("1", "true", "yes", "on")
+
+
+DEBUG = env_bool("DEBUG", False)
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
 if not SECRET_KEY:
     if DEBUG:
         SECRET_KEY = "dev-only-insecure-key"
     else:
         raise ImproperlyConfigured("DJANGO_SECRET_KEY must be set when DEBUG is False.")
-ALLOWED_HOSTS = ["*"]  
+
+# Render sets RENDER_EXTERNAL_HOSTNAME automatically for web services.
+RENDER_HOST = os.getenv("RENDER_EXTERNAL_HOSTNAME")
+
+ALLOWED_HOSTS = env_list("ALLOWED_HOSTS", "*" if DEBUG else "")
+if RENDER_HOST and RENDER_HOST not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(RENDER_HOST)
+if not DEBUG and not ALLOWED_HOSTS:
+    raise ImproperlyConfigured("Set ALLOWED_HOSTS (comma-separated) when DEBUG is False.")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -43,6 +60,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",  # must be high in the list
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",  # serves static files; right after SecurityMiddleware
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -72,7 +90,8 @@ TEMPLATES = [
 WSGI_APPLICATION = "core.wsgi.application"
 
 # --- Database ---
-# local Postgres via env vars
+# Local Postgres or Supabase, both via env vars.
+# For Supabase set DB_SSLMODE=require (see .env.example).
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
@@ -83,6 +102,8 @@ DATABASES = {
         "PORT": os.getenv("DB_PORT", "5432"),
     }
 }
+if os.getenv("DB_SSLMODE"):
+    DATABASES["default"]["OPTIONS"] = {"sslmode": os.environ["DB_SSLMODE"]}
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
@@ -99,6 +120,49 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# --- Uploaded files (check photos, appeal photos, partner logos) ---
+# Local dev: files go to backend/media/.
+# Production: they go to a PRIVATE Supabase Storage bucket (S3-compatible).
+# Render's disk is wiped on every deploy, so local media is not an option there.
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
+SUPABASE_S3 = {
+    "endpoint_url": os.getenv("SUPABASE_S3_ENDPOINT"),
+    "region_name": os.getenv("SUPABASE_S3_REGION"),
+    "access_key": os.getenv("SUPABASE_S3_ACCESS_KEY_ID"),
+    "secret_key": os.getenv("SUPABASE_S3_SECRET_ACCESS_KEY"),
+    "bucket_name": os.getenv("SUPABASE_S3_BUCKET"),
+}
+USE_SUPABASE_STORAGE = all(SUPABASE_S3.values())
+
+if not DEBUG and not USE_SUPABASE_STORAGE:
+    raise ImproperlyConfigured(
+        "Production needs Supabase Storage: set SUPABASE_S3_ENDPOINT, SUPABASE_S3_REGION, "
+        "SUPABASE_S3_ACCESS_KEY_ID, SUPABASE_S3_SECRET_ACCESS_KEY and SUPABASE_S3_BUCKET."
+    )
+
+if USE_SUPABASE_STORAGE:
+    default_storage = {
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": {
+            **SUPABASE_S3,
+            "signature_version": "s3v4",
+            "addressing_style": "path",
+            "querystring_auth": True,       # private bucket: every file URL is signed
+            "querystring_expire": 3600,     # signed links last 1 hour
+            "file_overwrite": False,
+            "default_acl": None,
+        },
+    }
+else:
+    default_storage = {"BACKEND": "django.core.files.storage.FileSystemStorage"}
+
+STORAGES = {
+    "default": default_storage,
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},
+}
 
 # --- DRF + JWT ---
 REST_FRAMEWORK = {
@@ -122,7 +186,7 @@ REST_FRAMEWORK = {
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
-    "ROTATE_REFRESH_TOKENS": True, # refresh endpoint returns a fresh refresh token too
+    "ROTATE_REFRESH_TOKENS": True,  # refresh endpoint returns a fresh refresh token too
 }
 
 CORS_ALLOWED_ORIGINS = env_list(
@@ -130,16 +194,15 @@ CORS_ALLOWED_ORIGINS = env_list(
 )
 
 CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS")
+if RENDER_HOST:
+    CSRF_TRUSTED_ORIGINS.append(f"https://{RENDER_HOST}")  # Django admin login on Render
 
 FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173")
-
-MEDIA_URL = '/media/'  # The URL address that points to your media files in the browser
-MEDIA_ROOT = BASE_DIR / 'media'  # The absolute file system path to the directory where user-uploaded files are stored
 
 # --- Production-only hardening ---
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-    SECURE_SSL_REDIRECT = os.getenv("SECURE_SSL_REDIRECT", "True").strip().lower() in ("1", "true", "yes", "on")
+    SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", True)
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_HSTS_SECONDS = 3600
